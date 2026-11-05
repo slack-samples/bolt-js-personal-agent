@@ -15,6 +15,7 @@ describe('handleMessage', () => {
   let logger;
   let streamer;
   let mcp;
+  let context;
 
   beforeEach((t) => {
     conversationStore._store.clear();
@@ -43,6 +44,11 @@ describe('handleMessage', () => {
       },
     };
     logger = { error: mock.fn() };
+    context = {
+      botUserId: 'UB0T',
+      userId: 'U123',
+      userToken: 'xoxp-123',
+    };
   });
 
   /** @param {Record<string, any>} event */
@@ -50,10 +56,7 @@ describe('handleMessage', () => {
     await handleMessage(
       /** @type {any} */ ({
         client,
-        context: {
-          userId: 'U123',
-          userToken: 'xoxp-123',
-        },
+        context,
         event: {
           channel: 'C123',
           ...event,
@@ -234,5 +237,39 @@ describe('handleMessage', () => {
     assert.ok(toolNames(model).includes('update_soul'));
     assert.ok(instructions(model).includes('The requester is your owner.'));
     assert.ok(instructions(model).includes('Your reply is private'));
+  });
+
+  it('leaves replies that mention the agent to app_mention', async (t) => {
+    conversationStore.setHistory('C123', 't1', 'U123', []);
+    const model = scripted(t, () => say('Nothing to keep.'));
+
+    await handle({ channel_type: 'channel', text: '<@UB0T> any update?', thread_ts: 't1', ts: 't2' });
+
+    assert.strictEqual(model.inputs.length, 1);
+    assert.ok(JSON.stringify(model.inputs[0]).includes('Learn from'));
+    assert.strictEqual(streamer.append.mock.callCount(), 0);
+  });
+
+  it('looks up the bot user once when the context has none', async (t) => {
+    context = { botToken: 'xoxb-fallback', userId: 'U123' };
+    client.auth = { test: mock.fn(async () => ({ ok: true, user_id: 'UB0T' })) };
+    conversationStore.setHistory('C123', 't1', 'U123', []);
+    const model = scripted(t, () => say('Nothing to keep.'));
+
+    await handle({ channel_type: 'channel', text: '<@UB0T> any update?', thread_ts: 't1', ts: 't2' });
+    await handle({ channel_type: 'channel', text: '<@UB0T> still there?', thread_ts: 't1', ts: 't3' });
+
+    assert.strictEqual(client.auth.test.mock.callCount(), 1);
+    assert.strictEqual(model.inputs.length, 2);
+    assert.strictEqual(streamer.append.mock.callCount(), 0);
+  });
+
+  it('still replies to DMs that mention the agent', async (t) => {
+    const model = scripted(t, () => say('Hi.'));
+
+    await handle({ channel_type: 'im', text: '<@UB0T> hello', ts: '1700000000.000100' });
+
+    assert.strictEqual(model.inputs.length, 1);
+    assert.strictEqual(streamer.append.mock.callCount(), 1);
   });
 });

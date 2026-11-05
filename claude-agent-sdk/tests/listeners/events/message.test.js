@@ -17,13 +17,15 @@ describe('handleMessage', () => {
   let client;
   let context;
   let logger;
+  let streamer;
 
   beforeEach((t) => {
     sessionStore._store.clear();
     setEnv(/** @type {import('node:test').TestContext} */ (t), { OWNER_USER_ID: 'U0WNER' });
     client = { chat: { postEphemeral: mock.fn(async () => ({ ok: true })) } };
-    context = { userId: 'U123', userToken: 'xoxp-123' };
+    context = { botUserId: 'UB0T', userId: 'U123', userToken: 'xoxp-123' };
     logger = { error: mock.fn() };
+    streamer = { append: mock.fn(async () => {}), stop: mock.fn(async () => {}) };
   });
 
   /** @param {Record<string, any>} event */
@@ -35,7 +37,7 @@ describe('handleMessage', () => {
         event: { channel: 'C123', ...event },
         logger,
         say: mock.fn(async () => {}),
-        sayStream: () => ({ append: mock.fn(async () => {}), stop: mock.fn(async () => {}) }),
+        sayStream: () => streamer,
         setStatus: mock.fn(async () => {}),
       }),
     );
@@ -232,5 +234,39 @@ describe('handleMessage', () => {
     assert.ok(options.systemPrompt.includes('Your reply is private'));
     assert.ok(options.allowedTools.includes('mcp__agent-tools__update_soul'));
     assert.strictEqual(options.persistSession, true);
+  });
+
+  it('leaves replies that mention the agent to app_mention', async (t) => {
+    sessionStore.setSession('C123', 't1', 'U123', 'reply-session');
+    const query = t.mock.method(sdk, 'query', answer('Nothing to keep.'));
+
+    await handle({ channel_type: 'channel', text: '<@UB0T> any update?', thread_ts: 't1', ts: 't2' });
+
+    assert.strictEqual(query.mock.callCount(), 1);
+    assert.ok(callOptions(query).prompt.startsWith('Learn from'));
+    assert.strictEqual(streamer.append.mock.callCount(), 0);
+  });
+
+  it('looks up the bot user once when the context has none', async (t) => {
+    context = { botToken: 'xoxb-fallback', userId: 'U123' };
+    client.auth = { test: mock.fn(async () => ({ ok: true, user_id: 'UB0T' })) };
+    sessionStore.setSession('C123', 't1', 'U123', 'reply-session');
+    const query = t.mock.method(sdk, 'query', answer('Nothing to keep.'));
+
+    await handle({ channel_type: 'channel', text: '<@UB0T> any update?', thread_ts: 't1', ts: 't2' });
+    await handle({ channel_type: 'channel', text: '<@UB0T> still there?', thread_ts: 't1', ts: 't3' });
+
+    assert.strictEqual(client.auth.test.mock.callCount(), 1);
+    assert.strictEqual(query.mock.callCount(), 2);
+    assert.strictEqual(streamer.append.mock.callCount(), 0);
+  });
+
+  it('still replies to DMs that mention the agent', async (t) => {
+    const query = t.mock.method(sdk, 'query', answer('Hi.'));
+
+    await handle({ channel_type: 'im', text: '<@UB0T> hello', ts: '1700000000.000100' });
+
+    assert.strictEqual(query.mock.callCount(), 1);
+    assert.strictEqual(streamer.append.mock.callCount(), 1);
   });
 });

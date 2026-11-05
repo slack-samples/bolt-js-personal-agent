@@ -23,6 +23,26 @@ function isLearnedMessageEvent(event) {
   return LEARNED_SUBTYPES.includes(event.subtype);
 }
 
+/** @type {Map<string, Promise<string | undefined>>} */
+const botUserIds = new Map();
+
+/**
+ * @param {import('@slack/web-api').WebClient} client
+ * @param {import('@slack/bolt').Context} context
+ * @returns {Promise<string | undefined>}
+ */
+async function resolveBotUserId(client, context) {
+  if (context.botUserId) return context.botUserId;
+  const token = context.botToken ?? '';
+  let botUserId = botUserIds.get(token);
+  if (!botUserId) {
+    botUserId = client.auth.test().then((response) => response.user_id);
+    botUserIds.set(token, botUserId);
+    botUserId.catch(() => botUserIds.delete(token));
+  }
+  return await botUserId;
+}
+
 /**
  * Handle messages sent to the agent via DM or in threads the bot is part of.
  * The agent also learns from channel messages, adding anything they settle to runbooks.
@@ -73,6 +93,12 @@ export async function handleMessage({ client, context, event, logger, say, saySt
   try {
     const channelId = event.channel;
     const text = event.text || '';
+
+    if (!isDm) {
+      const botUserId = await resolveBotUserId(client, context);
+      if (botUserId && text.includes(`<@${botUserId}>`)) return;
+    }
+
     const threadTs = event.thread_ts || event.ts;
     const userId = /** @type {string} */ (context.userId);
 
