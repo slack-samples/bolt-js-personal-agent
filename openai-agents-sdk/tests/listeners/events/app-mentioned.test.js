@@ -96,4 +96,16 @@ describe('handleAppMentioned', () => {
       { role: 'user', content: 'owner secret' },
     ]);
   });
+
+  it('ignores mentions from bots', async (t) => {
+    const model = scripted(t, () => say('Hi.'));
+
+    const streamer = await mention(
+      { userId: 'U123' },
+      { bot_id: 'B456', text: '<@B123> hello', ts: '1700000000.000100' },
+    );
+
+    assert.strictEqual(model.inputs.length, 0);
+    assert.strictEqual(streamer.append.mock.callCount(), 0);
+  });
 });

@@ -78,4 +78,14 @@ describe('handleAppMentioned', () => {
     assert.strictEqual(sessionStore.getSession('C123', 't1', 'U123'), 'guest-session');
     assert.strictEqual(sessionStore.getSession('C123', 't1', 'U0WNER'), 'owner-session');
   });
+
+  it('ignores mentions from bots', async (t) => {
+    const query = t.mock.method(sdk, 'query', answer('Hi.'));
+    const streamer = makeStreamer();
+
+    await mention({ userId: 'U123' }, { bot_id: 'B456', text: '<@B123> hello', ts: '1700000000.000100' }, streamer);
+
+    assert.strictEqual(query.mock.callCount(), 0);
+    assert.strictEqual(streamer.append.mock.callCount(), 0);
+  });
 });

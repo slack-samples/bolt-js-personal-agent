@@ -9,6 +9,8 @@ import { buildReplyDeps } from './reply-deps.js';
  * @returns {Promise<void>}
  */
 export async function handleAppMentioned({ client, context, event, logger, say, sayStream, setStatus }) {
+  if (event.bot_id) return;
+
   try {
     const channelId = event.channel;
     const text = event.text || '';
