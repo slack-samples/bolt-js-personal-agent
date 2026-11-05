@@ -12,44 +12,64 @@ describe('ConversationStore', () => {
 
   it('stores and retrieves history', () => {
     const messages = [{ role: 'user', content: 'hello' }];
-    store.setHistory('C1', 'T1', messages);
-    assert.deepStrictEqual(store.getHistory('C1', 'T1'), messages);
+    store.setHistory('C1', 'T1', 'U1', messages);
+    assert.deepStrictEqual(store.getHistory('C1', 'T1', 'U1'), messages);
   });
 
   it('returns null for missing key', () => {
-    assert.strictEqual(store.getHistory('C1', 'T99'), null);
+    assert.strictEqual(store.getHistory('C1', 'T99', 'U1'), null);
   });
 
   it('keeps different threads independent', () => {
     const m1 = [{ role: 'user', content: 'a' }];
     const m2 = [{ role: 'user', content: 'b' }];
-    store.setHistory('C1', 'T1', m1);
-    store.setHistory('C1', 'T2', m2);
-    assert.deepStrictEqual(store.getHistory('C1', 'T1'), m1);
-    assert.deepStrictEqual(store.getHistory('C1', 'T2'), m2);
+    store.setHistory('C1', 'T1', 'U1', m1);
+    store.setHistory('C1', 'T2', 'U1', m2);
+    assert.deepStrictEqual(store.getHistory('C1', 'T1', 'U1'), m1);
+    assert.deepStrictEqual(store.getHistory('C1', 'T2', 'U1'), m2);
   });
 
   it('expires entries after TTL', async () => {
     const shortStore = new ConversationStore(0);
-    shortStore.setHistory('C1', 'T1', [{ role: 'user', content: 'hi' }]);
-    // Need a tiny delay to ensure Date.now() advances past the stored timestamp
+    shortStore.setHistory('C1', 'T1', 'U1', [{ role: 'user', content: 'hi' }]);
     await new Promise((resolve) => setTimeout(resolve, 5));
-    assert.strictEqual(shortStore.getHistory('C1', 'T1'), null);
+    assert.strictEqual(shortStore.getHistory('C1', 'T1', 'U1'), null);
   });
 
   it('evicts oldest entries when max is exceeded', () => {
     const smallStore = new ConversationStore(86400, 2);
-    smallStore.setHistory('C1', 'T1', [{ role: 'user', content: '1' }]);
-    smallStore.setHistory('C1', 'T2', [{ role: 'user', content: '2' }]);
-    smallStore.setHistory('C1', 'T3', [{ role: 'user', content: '3' }]);
-    assert.strictEqual(smallStore.getHistory('C1', 'T1'), null);
-    assert.deepStrictEqual(smallStore.getHistory('C1', 'T2'), [{ role: 'user', content: '2' }]);
-    assert.deepStrictEqual(smallStore.getHistory('C1', 'T3'), [{ role: 'user', content: '3' }]);
+    smallStore.setHistory('C1', 'T1', 'U1', [{ role: 'user', content: '1' }]);
+    smallStore.setHistory('C1', 'T2', 'U1', [{ role: 'user', content: '2' }]);
+    smallStore.setHistory('C1', 'T3', 'U1', [{ role: 'user', content: '3' }]);
+    assert.strictEqual(smallStore.getHistory('C1', 'T1', 'U1'), null);
+    assert.deepStrictEqual(smallStore.getHistory('C1', 'T2', 'U1'), [{ role: 'user', content: '2' }]);
+    assert.deepStrictEqual(smallStore.getHistory('C1', 'T3', 'U1'), [{ role: 'user', content: '3' }]);
   });
 
   it('overwrites existing key', () => {
-    store.setHistory('C1', 'T1', [{ role: 'user', content: 'old' }]);
-    store.setHistory('C1', 'T1', [{ role: 'user', content: 'new' }]);
-    assert.deepStrictEqual(store.getHistory('C1', 'T1'), [{ role: 'user', content: 'new' }]);
+    store.setHistory('C1', 'T1', 'U1', [{ role: 'user', content: 'old' }]);
+    store.setHistory('C1', 'T1', 'U1', [{ role: 'user', content: 'new' }]);
+    assert.deepStrictEqual(store.getHistory('C1', 'T1', 'U1'), [{ role: 'user', content: 'new' }]);
+  });
+
+  it('keeps history separate per user', () => {
+    const messages = [{ role: 'user', content: 'hello' }];
+    store.setHistory('C1', 't1', 'U1', messages);
+    assert.strictEqual(store.getHistory('C1', 't1', 'U2'), null);
+    assert.deepStrictEqual(store.getHistory('C1', 't1', 'U1'), messages);
+  });
+
+  it('has a thread for any user', () => {
+    store.setHistory('C1', 't1', 'U1', [{ role: 'user', content: 'hello' }]);
+    assert.strictEqual(store.hasThread('C1', 't1'), true);
+    assert.strictEqual(store.hasThread('C1', 't2'), false);
+  });
+
+  it('forgets expired threads', async () => {
+    const shortStore = new ConversationStore(0);
+    shortStore.setHistory('C1', 't1', 'U1', [{ role: 'user', content: 'hello' }]);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.strictEqual(shortStore.getHistory('C1', 't1', 'U1'), null);
+    assert.strictEqual(shortStore.hasThread('C1', 't1'), false);
   });
 });

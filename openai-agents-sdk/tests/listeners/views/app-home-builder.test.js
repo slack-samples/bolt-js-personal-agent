@@ -39,4 +39,59 @@ describe('buildAppHomeView', () => {
     const hasConnected = mrkdwnTexts.some((t) => t.includes('connected'));
     assert.strictEqual(hasConnected, true);
   });
+
+  /**
+   * @param {import('@slack/types').HomeView} view
+   * @returns {string[]}
+   */
+  function sectionTexts(view) {
+    return view.blocks.filter((b) => b.type === 'section').map((b) => /** @type {any} */ (b).text.text);
+  }
+
+  /**
+   * @param {import('@slack/types').HomeView} view
+   * @returns {string[]}
+   */
+  function contextTexts(view) {
+    return view.blocks
+      .filter((b) => b.type === 'context')
+      .flatMap((b) => /** @type {any} */ (b).elements.map((/** @type {any} */ e) => e.text));
+  }
+
+  it('shows the setup prompt for a template soul', () => {
+    const soulSection = sectionTexts(buildAppHomeView(null, false, 'template')).find((t) =>
+      t.toLowerCase().includes('soul'),
+    );
+    assert.ok(soulSection);
+    assert.ok(soulSection.includes("isn't set up"));
+    assert.ok(soulSection.includes(':sparkles:'));
+  });
+
+  it('shows a personalized soul as set up', () => {
+    const soulSection = sectionTexts(buildAppHomeView(null, false, 'personalized')).find((t) =>
+      t.toLowerCase().includes('soul'),
+    );
+    assert.ok(soulSection);
+    assert.ok(soulSection.includes('is set up'));
+    assert.ok(soulSection.includes(':white_check_mark:'));
+  });
+
+  it('shows no soul status without one', () => {
+    const soulSections = sectionTexts(buildAppHomeView(null, false, null)).filter((t) =>
+      t.toLowerCase().includes('soul'),
+    );
+    assert.strictEqual(soulSections.length, 0);
+  });
+
+  it('scopes the Slack MCP Server to DMs', () => {
+    for (const view of [
+      buildAppHomeView(),
+      buildAppHomeView('https://example.com/slack/install'),
+      buildAppHomeView(null, true),
+    ]) {
+      const mcpContext = contextTexts(view).find((t) => t.includes('Slack MCP Server'));
+      assert.ok(mcpContext);
+      assert.ok(mcpContext.includes('only in your DMs with the agent'));
+    }
+  });
 });

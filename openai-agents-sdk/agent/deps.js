@@ -1,4 +1,12 @@
 /**
+ * @typedef {Object} AgentDepsOptions
+ * @property {string} [userToken]
+ * @property {boolean} [isOwner]
+ * @property {boolean} [isPrivateReply]
+ * @property {boolean} [isBrief]
+ */
+
+/**
  * Dependencies passed to the agent as run context.
  */
 export class AgentDeps {
@@ -8,9 +16,9 @@ export class AgentDeps {
    * @param {string} channelId
    * @param {string} threadTs
    * @param {string} messageTs
-   * @param {string} [userToken]
+   * @param {AgentDepsOptions} [options]
    */
-  constructor(client, userId, channelId, threadTs, messageTs, userToken = undefined) {
+  constructor(client, userId, channelId, threadTs, messageTs, options = {}) {
     /** @type {import('@slack/web-api').WebClient} */
     this.client = client;
     /** @type {string} */
@@ -22,6 +30,12 @@ export class AgentDeps {
     /** @type {string} */
     this.messageTs = messageTs;
     /** @type {string | undefined} */
-    this.userToken = userToken;
+    this.userToken = options.userToken;
+    /** @type {boolean} */
+    this.isOwner = options.isOwner ?? false;
+    /** @type {boolean} */
+    this.isPrivateReply = options.isPrivateReply ?? false;
+    /** @type {boolean} */
+    this.isBrief = options.isBrief ?? false;
   }
 }

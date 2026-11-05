@@ -46,11 +46,14 @@ export class FakeModel {
     this.script = script;
     /** @type {any[]} */
     this.inputs = [];
+    /** @type {import('@openai/agents').ModelRequest[]} */
+    this.requests = [];
   }
 
   /** @param {import('@openai/agents').ModelRequest} request */
   async getResponse(request) {
     this.inputs.push(request.input);
+    this.requests.push(request);
     const output = this.script(this.inputs.length);
     return {
       usage: new Usage(),
@@ -63,6 +66,26 @@ export class FakeModel {
   getStreamedResponse() {
     throw new Error('Not implemented');
   }
+}
+
+/**
+ * The names of the tools offered to the model on its `callNumber`th call, counting from 1.
+ * @param {FakeModel} model
+ * @param {number} [callNumber]
+ * @returns {string[]}
+ */
+export function toolNames(model, callNumber = 1) {
+  return model.requests[callNumber - 1].tools.map((tool) => tool.name);
+}
+
+/**
+ * The system prompt the model got on its `callNumber`th call, counting from 1.
+ * @param {FakeModel} model
+ * @param {number} [callNumber]
+ * @returns {string}
+ */
+export function instructions(model, callNumber = 1) {
+  return model.requests[callNumber - 1].systemInstructions ?? '';
 }
 
 /**

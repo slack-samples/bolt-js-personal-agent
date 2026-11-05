@@ -2,6 +2,7 @@ import assert from 'node:assert';
 import { beforeEach, describe, it, mock } from 'node:test';
 
 import { handleAppHomeOpened } from '../../../listeners/events/app-home-opened.js';
+import { withOwner, withSoul } from '../../helpers.js';
 
 describe('handleAppHomeOpened', () => {
   let fakeClient;
@@ -44,5 +45,44 @@ describe('handleAppHomeOpened', () => {
     const event = { tab: 'home', channel: 'D123' };
     await handleAppHomeOpened({ client: fakeClient, event, context: fakeContext, logger: fakeLogger });
     assert.strictEqual(fakeLogger.error.mock.callCount(), 1);
+  });
+
+  it('shows owner prompts on the Messages tab', async (t) => {
+    withOwner(t, 'U123');
+    const event = { tab: 'messages', channel: 'D123' };
+    await handleAppHomeOpened({ client: fakeClient, event, context: fakeContext, logger: fakeLogger });
+    const { prompts } = fakeClient.assistant.threads.setSuggestedPrompts.mock.calls[0].arguments[0];
+    const titles = prompts.map((/** @type {any} */ p) => p.title);
+    assert.ok(titles.includes('Write a Runbook'));
+    assert.ok(titles.includes('Update my soul'));
+  });
+
+  it('shows guest prompts on the Messages tab', async (t) => {
+    withOwner(t, 'UOWNER');
+    fakeContext.userId = 'UGUEST';
+    const event = { tab: 'messages', channel: 'D123' };
+    await handleAppHomeOpened({ client: fakeClient, event, context: fakeContext, logger: fakeLogger });
+    const { prompts } = fakeClient.assistant.threads.setSuggestedPrompts.mock.calls[0].arguments[0];
+    const titles = prompts.map((/** @type {any} */ p) => p.title);
+    assert.ok(titles.includes("Ask what they're working on"));
+    assert.ok(!titles.includes('Update my soul'));
+  });
+
+  it('shows the soul status to the owner', async (t) => {
+    withOwner(t, 'U123');
+    withSoul(t, '<!-- soul-template -->\nTemplate content');
+    const event = { tab: 'home', channel: 'D123' };
+    await handleAppHomeOpened({ client: fakeClient, event, context: fakeContext, logger: fakeLogger });
+    const { view } = fakeClient.views.publish.mock.calls[0].arguments[0];
+    assert.ok(JSON.stringify(view).includes("isn't set up"));
+  });
+
+  it('hides the soul status from guests', async (t) => {
+    withOwner(t, 'UOWNER');
+    fakeContext.userId = 'UGUEST';
+    const event = { tab: 'home', channel: 'D123' };
+    await handleAppHomeOpened({ client: fakeClient, event, context: fakeContext, logger: fakeLogger });
+    const { view } = fakeClient.views.publish.mock.calls[0].arguments[0];
+    assert.ok(!JSON.stringify(view).toLowerCase().includes('soul'));
   });
 });

@@ -1,6 +1,7 @@
-import { AgentDeps, runAgent } from '../../agent/index.js';
+import { runAgent } from '../../agent/index.js';
 import { conversationStore } from '../../thread-context/index.js';
 import { buildFeedbackBlocks } from '../views/feedback-builder.js';
+import { buildReplyDeps } from './reply-deps.js';
 
 /**
  * Handle app_mention events and run the agent.
@@ -14,7 +15,6 @@ export async function handleAppMentioned({ client, context, event, logger, say, 
     const threadTs = event.thread_ts || event.ts;
     const userId = /** @type {string} */ (context.userId);
 
-    // Strip the bot mention from the text
     const cleanedText = text.replace(/<@[A-Z0-9]+>/g, '').trim();
 
     if (!cleanedText) {
@@ -25,7 +25,6 @@ export async function handleAppMentioned({ client, context, event, logger, say, 
       return;
     }
 
-    // Set assistant thread status with loading messages
     await setStatus({
       status: 'Thinking\u2026',
       loading_messages: [
@@ -37,23 +36,19 @@ export async function handleAppMentioned({ client, context, event, logger, say, 
       ],
     });
 
-    // Get conversation history
-    const history = conversationStore.getHistory(channelId, threadTs);
+    const history = conversationStore.getHistory(channelId, threadTs, userId);
     /** @type {string | import('@openai/agents').AgentInputItem[]} */
     const inputItems = history ? [...history, { role: 'user', content: cleanedText }] : cleanedText;
 
-    // Run the agent
-    const deps = new AgentDeps(client, userId, channelId, threadTs, event.ts, context.userToken);
+    const deps = buildReplyDeps(client, context, event, false);
     const result = await runAgent(inputItems, deps);
 
-    // Stream response in thread with feedback buttons
     const streamer = sayStream();
     await streamer.append({ markdown_text: result.finalOutput });
     const feedbackBlocks = buildFeedbackBlocks();
     await streamer.stop({ blocks: feedbackBlocks });
 
-    // Store conversation history
-    conversationStore.setHistory(channelId, threadTs, result.history);
+    conversationStore.setHistory(channelId, threadTs, userId, result.history);
   } catch (e) {
     logger.error(`Failed to handle app mention: ${e}`);
     await say({

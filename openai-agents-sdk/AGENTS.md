@@ -4,7 +4,16 @@ This file provides guidance to coding agents when working with code in this repo
 
 ## What This Is
 
-A **Team Agent** for Slack built with Bolt for JavaScript and the **OpenAI Agents SDK**. It keeps a team's runbooks current and helps route requests. Runbooks are Slack canvases titled `Runbook: <topic>`. With the bot token, the agent lists, reads, and creates them with tools in `agent/tools/` (`files.list`, `canvases.getContent`, `canvases.create`). When the person has connected the Slack MCP Server, it uses the MCP runbook tools instead, which can also edit runbooks. The same agent learns from each channel message (`listeners/events/message.js`), adding anything it settles to a runbook. It also includes one app tool (emoji reactions).
+A **Personal Agent** for Slack built with Bolt for JavaScript and the **OpenAI Agents SDK**. An agent that represents its owner in Slack. It learns who the owner is from a `soul.md` file, answers questions on their behalf when teammates message it, and keeps runbooks current. Runbooks are Slack canvases titled `Runbook: <topic>`. With the bot token, the agent lists, reads, and creates them with tools in `agent/tools/` (`files.list`, `canvases.getContent`, `canvases.create`). When a person has connected the Slack MCP Server, it uses the MCP runbook tools instead, which can also edit runbooks. The same agent learns from each channel message (`listeners/events/message.js`), adding anything it settles to a runbook. The owner can use `/brief` to get a summary of what needs their attention. Privacy is the top priority: the agent never responds with data that anyone who will see the reply couldn't already see.
+
+## Invariants
+
+- User tokens only attached to replies only that user sees
+- Passive learning is bot-token only
+- `update_soul` is owner-only in DM
+- `/brief` is read-only
+- Bot runbook tools only see the current conversation
+- Conversation history is keyed per requester
 
 ## Slack Plugin
 

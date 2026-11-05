@@ -1,58 +1,70 @@
+import { isOwner } from '../../agent/access.js';
+import { isTemplate, loadSoul } from '../../agent/soul.js';
+import { installUrl } from '../install-url.js';
 import { buildAppHomeView } from '../views/app-home-builder.js';
 
-const SUGGESTED_PROMPTS = [
+const OWNER_PROMPTS = [
   {
     title: 'Find a Runbook',
     message: "Is there a runbook for rotating our app's signing secret?",
   },
   {
-    title: 'Triage a Request',
-    message: 'Deploys started failing this morning. What should I do?',
-  },
-  {
     title: 'Write a Runbook',
     message: 'Help me write a runbook for onboarding a new teammate',
+  },
+  {
+    title: 'Update my soul',
+    message: 'Help me update my soul',
+  },
+];
+
+const GUEST_PROMPTS = [
+  {
+    title: 'Find a Runbook',
+    message: "Is there a runbook for rotating our app's signing secret?",
+  },
+  {
+    title: "Ask what they're working on",
+    message: 'What is your owner working on right now?',
+  },
+  {
+    title: 'Triage a Request',
+    message: 'Deploys started failing this morning. What should I do?',
   },
 ];
 
 /**
- * Handle app_home_opened events. Under agent_view, this event fires for both
- * the Home tab and the Messages tab (the agent DM). Branch on event.tab:
- *   - 'messages' → pin suggested prompts to the top of the DM
- *   - 'home'     → publish the App Home Block Kit view
+ * Publish the App Home view with MCP connection status and soul status for the owner,
+ * or pin suggested prompts to the Messages tab.
  * @param {import('@slack/bolt').AllMiddlewareArgs & import('@slack/bolt').SlackEventMiddlewareArgs<'app_home_opened'>} args
  * @returns {Promise<void>}
  */
 export async function handleAppHomeOpened({ client, event, context, logger }) {
   try {
+    const userId = /** @type {string} */ (context.userId);
+    const userIsOwner = isOwner(userId);
+
     if (event.tab === 'messages') {
       await client.assistant.threads.setSuggestedPrompts(
-        // Under agent_view, suggested prompts pin to the top of the Messages tab —
-        // no thread_ts is required. Cast until @slack/bolt's types catch up.
         /** @type {import('@slack/web-api').AssistantThreadsSetSuggestedPromptsArguments} */ ({
           channel_id: event.channel,
           title: 'How can I help you today?',
-          prompts: SUGGESTED_PROMPTS,
+          prompts: userIsOwner ? OWNER_PROMPTS : GUEST_PROMPTS,
         }),
       );
-      // TODO(agent-dm-messages-tab): handle app_context_changed once Bolt supports it
       return;
     }
 
-    const userId = /** @type {string} */ (context.userId);
-    let installUrl = null;
-    let isConnected = false;
-
-    if (process.env.SLACK_CLIENT_ID) {
-      if (context.userToken) {
-        isConnected = true;
-      } else if (process.env.SLACK_REDIRECT_URI) {
-        const base = new URL(process.env.SLACK_REDIRECT_URI);
-        installUrl = `${base.origin}/slack/install`;
-      }
+    /** @type {'template' | 'personalized' | null} */
+    let soulStatus = null;
+    if (userIsOwner) {
+      soulStatus = isTemplate(loadSoul()) ? 'template' : 'personalized';
     }
 
-    const view = buildAppHomeView(installUrl, isConnected);
+    const url = installUrl();
+    const isConnected = url !== null && Boolean(context.userToken);
+
+    const view = buildAppHomeView(isConnected ? null : url, isConnected, soulStatus);
     await client.views.publish({ user_id: userId, view });
   } catch (e) {
     logger.error(`Failed to handle app_home_opened: ${e}`);

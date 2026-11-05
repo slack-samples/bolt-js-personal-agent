@@ -1,31 +1,53 @@
+import { README_MCP_URL } from '../install-url.js';
+
+const MCP_SCOPE =
+  'The agent uses the Slack MCP Server as you only in your DMs with the agent ' +
+  'and in `/brief`. Channel replies use the bot token.';
+
 /**
- * Build the App Home Block Kit view.
+ * Build the App Home Block Kit view with MCP connection status and soul status for the owner.
  * @param {string | null} [installUrl] - OAuth install URL shown when MCP is disconnected.
  * @param {boolean} [isConnected] - Whether the Slack MCP Server is connected.
+ * @param {'template' | 'personalized' | null} [soulStatus] - The owner's soul status, or null for everyone else.
  * @returns {import('@slack/types').HomeView}
  */
-export function buildAppHomeView(installUrl = null, isConnected = false) {
+export function buildAppHomeView(installUrl = null, isConnected = false, soulStatus = null) {
   /** @type {import('@slack/types').KnownBlock[]} */
   const blocks = [
     {
       type: 'header',
       text: {
         type: 'plain_text',
-        text: "Hey there :wave: I'm your team agent.",
+        text: "Hey there :wave: I'm a personal agent.",
       },
     },
     {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text:
-          "I keep your team's runbooks current and help route requests.\n\n" +
-          "*Invite me to your team channel* and I'll add what your messages settle to runbooks. " +
-          '*Mention me* or *send me a direct message* to find a runbook or triage a request.',
+        text: "I answer as my owner's agent, keep runbooks current, and never decide for my owner.",
       },
     },
     { type: 'divider' },
   ];
+
+  if (soulStatus === 'template') {
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: ":sparkles: *Your soul isn't set up yet.* Send me a DM and I'll interview you.",
+      },
+    });
+  } else if (soulStatus === 'personalized') {
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: ':white_check_mark: *Your soul is set up.* Say "update my soul" anytime.',
+      },
+    });
+  }
 
   if (isConnected) {
     blocks.push(
@@ -41,7 +63,7 @@ export function buildAppHomeView(installUrl = null, isConnected = false) {
         elements: [
           {
             type: 'mrkdwn',
-            text: 'The agent works with runbooks as you, through the Slack MCP Server.',
+            text: MCP_SCOPE,
           },
         ],
       },
@@ -60,7 +82,7 @@ export function buildAppHomeView(installUrl = null, isConnected = false) {
         elements: [
           {
             type: 'mrkdwn',
-            text: 'Connect the Slack MCP Server so the agent works with runbooks as you.',
+            text: `Connect the Slack MCP Server. ${MCP_SCOPE}`,
           },
         ],
       },
@@ -71,7 +93,7 @@ export function buildAppHomeView(installUrl = null, isConnected = false) {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: '\ud83d\udd34 *Slack MCP Server is disconnected.* <https://github.com/slack-samples/bolt-js-team-agent/blob/main/openai-agents-sdk/README.md#slack-mcp-server|Learn how to enable the Slack MCP Server.>',
+          text: `\ud83d\udd34 *Slack MCP Server is disconnected.* <${README_MCP_URL}|Learn how to enable the Slack MCP Server.>`,
         },
       },
       {
@@ -79,7 +101,7 @@ export function buildAppHomeView(installUrl = null, isConnected = false) {
         elements: [
           {
             type: 'mrkdwn',
-            text: 'Connect the Slack MCP Server so the agent works with runbooks as you.',
+            text: `Connect the Slack MCP Server. ${MCP_SCOPE}`,
           },
         ],
       },
