@@ -28,8 +28,11 @@ describe('handleMessage', () => {
     streamer = { append: mock.fn(async () => {}), stop: mock.fn(async () => {}) };
   });
 
-  /** @param {Record<string, any>} event */
-  async function handle(event) {
+  /**
+   * @param {Record<string, any>} event
+   * @param {Record<string, any>} [overrides]
+   */
+  async function handle(event, overrides = {}) {
     await handleMessage(
       /** @type {any} */ ({
         client,
@@ -39,6 +42,7 @@ describe('handleMessage', () => {
         say: mock.fn(async () => {}),
         sayStream: () => streamer,
         setStatus: mock.fn(async () => {}),
+        ...overrides,
       }),
     );
   }
@@ -188,7 +192,7 @@ describe('handleMessage', () => {
     await handle({ channel_type: 'channel', text: 'Any update?', thread_ts: 't1', ts: 't2' });
 
     assert.strictEqual(query.mock.callCount(), 2);
-    const { prompt, options } = callOptions(query, 1);
+    const { prompt, options } = callOptions(query);
     assert.strictEqual(prompt, 'Any update?');
     assert.strictEqual(options.resume, undefined);
     assert.ok(options.systemPrompt.includes('<@U123>'));
@@ -214,7 +218,7 @@ describe('handleMessage', () => {
     await handle({ channel_type: 'channel', text: 'Any update?', thread_ts: 't1', ts: 't2' });
 
     assert.strictEqual(query.mock.callCount(), 2);
-    const { options } = callOptions(query, 1);
+    const { options } = callOptions(query);
     assert.strictEqual(options.resume, 'owner-session');
     assert.ok(options.systemPrompt.includes('The requester is your owner.'));
     assert.ok(options.systemPrompt.includes('Your reply is not private'));
@@ -268,5 +272,52 @@ describe('handleMessage', () => {
 
     assert.strictEqual(query.mock.callCount(), 1);
     assert.strictEqual(streamer.append.mock.callCount(), 1);
+  });
+
+  it('replies before learning in an engaged thread', async (t) => {
+    sessionStore.setSession('C123', 't1', 'U123', 'reply-session');
+    const query = t.mock.method(sdk, 'query', answer('No update yet.'));
+
+    await handle({ channel_type: 'channel', text: 'Any update?', thread_ts: 't1', ts: 't2' });
+
+    assert.strictEqual(query.mock.callCount(), 2);
+    assert.strictEqual(callOptions(query).prompt, 'Any update?');
+    assert.ok(callOptions(query, 1).prompt.startsWith('Learn from'));
+    assert.strictEqual(streamer.append.mock.callCount(), 1);
+  });
+
+  it('still learns when the reply fails', async (t) => {
+    sessionStore.setSession('C123', 't1', 'U123', 'reply-session');
+    const learn = answer('Nothing to keep.');
+    const query = t.mock.method(sdk, 'query', (/** @type {any} */ request) => {
+      if (request.prompt.startsWith('Learn from')) return learn();
+      throw new Error('reply failed');
+    });
+    const failingSay = mock.fn(async () => {
+      throw new Error('say failed');
+    });
+
+    await assert.rejects(
+      handle({ channel_type: 'channel', text: 'Any update?', thread_ts: 't1', ts: 't2' }, { say: failingSay }),
+      /say failed/,
+    );
+
+    assert.strictEqual(query.mock.callCount(), 2);
+    assert.ok(callOptions(query, 1).prompt.startsWith('Learn from'));
+    assert.ok(logger.error.mock.calls[0].arguments[0].includes('reply failed'));
+  });
+
+  it('still replies when learning fails', async (t) => {
+    sessionStore.setSession('C123', 't1', 'U123', 'reply-session');
+    const reply = answer('No update yet.');
+    t.mock.method(sdk, 'query', (/** @type {any} */ request) => {
+      if (request.prompt.startsWith('Learn from')) throw new Error('learning failed');
+      return reply();
+    });
+
+    await handle({ channel_type: 'channel', text: 'Any update?', thread_ts: 't1', ts: 't2' });
+
+    assert.strictEqual(streamer.append.mock.callCount(), 1);
+    assert.ok(logger.error.mock.calls[0].arguments[0].includes('learning failed'));
   });
 });

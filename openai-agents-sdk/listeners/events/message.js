@@ -50,39 +50,27 @@ async function resolveBotUserId(client, context) {
  * @param {import('@slack/bolt').AllMiddlewareArgs & import('@slack/bolt').SlackEventMiddlewareArgs<'message'>} args
  * @returns {Promise<void>}
  */
-export async function handleMessage({ client, context, event, logger, say, sayStream, setStatus }) {
+export async function handleMessage(args) {
+  const { event } = args;
   if ('bot_id' in event && event.bot_id) return;
 
   const isDm = event.channel_type === 'im';
 
-  if (!isDm && isLearnedMessageEvent(event)) {
-    try {
-      const deps = new AgentDeps(
-        client,
-        /** @type {string} */ (context.userId),
-        event.channel,
-        event.thread_ts || event.ts,
-        event.ts,
-        {
-          userToken: undefined,
-          isOwner: false,
-          isPrivateReply: false,
-        },
-      );
-      const result = await runAgent(`Learn from this channel message:\n\n${event.text || ''}`, deps);
-      if (result.newItems.some((item) => RUNBOOK_WRITES.has(/** @type {any} */ (item.rawItem).name))) {
-        await client.chat.postEphemeral({
-          channel: event.channel,
-          markdown_text: result.finalOutput,
-          thread_ts: event.thread_ts,
-          user: /** @type {string} */ (context.userId),
-        });
-      }
-    } catch (e) {
-      logger.error(`Failed to learn from message: ${e}`);
+  try {
+    await replyToMessage(args, isDm);
+  } finally {
+    if (!isDm && isLearnedMessageEvent(event)) {
+      await learnFromMessage(args, event);
     }
   }
+}
 
+/**
+ * @param {import('@slack/bolt').AllMiddlewareArgs & import('@slack/bolt').SlackEventMiddlewareArgs<'message'>} args
+ * @param {boolean} isDm
+ * @returns {Promise<void>}
+ */
+async function replyToMessage({ client, context, event, logger, say, sayStream, setStatus }, isDm) {
   if (!isGenericMessageEvent(event)) return;
 
   if (!isDm && !(event.thread_ts && conversationStore.hasThread(event.channel, event.thread_ts))) return;
@@ -130,5 +118,38 @@ export async function handleMessage({ client, context, event, logger, say, saySt
       text: `:warning: Something went wrong! (${e})`,
       thread_ts: event.thread_ts || event.ts,
     });
+  }
+}
+
+/**
+ * @param {import('@slack/bolt').AllMiddlewareArgs & import('@slack/bolt').SlackEventMiddlewareArgs<'message'>} args
+ * @param {import('@slack/types').GenericMessageEvent | import('@slack/types').FileShareMessageEvent | import('@slack/types').ThreadBroadcastMessageEvent} event
+ * @returns {Promise<void>}
+ */
+async function learnFromMessage({ client, context, logger }, event) {
+  try {
+    const deps = new AgentDeps(
+      client,
+      /** @type {string} */ (context.userId),
+      event.channel,
+      event.thread_ts || event.ts,
+      event.ts,
+      {
+        userToken: undefined,
+        isOwner: false,
+        isPrivateReply: false,
+      },
+    );
+    const result = await runAgent(`Learn from this channel message:\n\n${event.text || ''}`, deps);
+    if (result.newItems.some((item) => RUNBOOK_WRITES.has(/** @type {any} */ (item.rawItem).name))) {
+      await client.chat.postEphemeral({
+        channel: event.channel,
+        markdown_text: result.finalOutput,
+        thread_ts: event.thread_ts,
+        user: /** @type {string} */ (context.userId),
+      });
+    }
+  } catch (e) {
+    logger.error(`Failed to learn from message: ${e}`);
   }
 }

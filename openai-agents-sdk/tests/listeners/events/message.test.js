@@ -51,8 +51,11 @@ describe('handleMessage', () => {
     };
   });
 
-  /** @param {Record<string, any>} event */
-  async function handle(event) {
+  /**
+   * @param {Record<string, any>} event
+   * @param {Record<string, any>} [overrides]
+   */
+  async function handle(event, overrides = {}) {
     await handleMessage(
       /** @type {any} */ ({
         client,
@@ -65,6 +68,7 @@ describe('handleMessage', () => {
         say: mock.fn(),
         sayStream: () => streamer,
         setStatus: mock.fn(),
+        ...overrides,
       }),
     );
   }
@@ -191,12 +195,12 @@ describe('handleMessage', () => {
     await handle({ channel_type: 'channel', text: 'Any update?', thread_ts: 't1', ts: 't2' });
 
     assert.strictEqual(model.inputs.length, 2);
-    assert.deepStrictEqual(model.inputs[1], [{ type: 'message', role: 'user', content: 'Any update?' }]);
-    assert.ok(!JSON.stringify(model.inputs[1]).includes('owner secret'));
+    assert.deepStrictEqual(model.inputs[0], [{ type: 'message', role: 'user', content: 'Any update?' }]);
+    assert.ok(!JSON.stringify(model.inputs[0]).includes('owner secret'));
     assert.strictEqual(mcp.servers.length, 0);
-    assert.ok(instructions(model, 2).includes('<@U123>'));
-    assert.ok(instructions(model, 2).includes('The requester is not your owner.'));
-    assert.ok(instructions(model, 2).includes('Your reply is not private'));
+    assert.ok(instructions(model).includes('<@U123>'));
+    assert.ok(instructions(model).includes('The requester is not your owner.'));
+    assert.ok(instructions(model).includes('Your reply is not private'));
   });
 
   it('ignores thread replies when the thread is not engaged', async (t) => {
@@ -217,9 +221,9 @@ describe('handleMessage', () => {
 
     assert.strictEqual(model.inputs.length, 2);
     assert.strictEqual(mcp.servers.length, 0);
-    assert.ok(!toolNames(model, 2).includes('update_soul'));
-    assert.ok(instructions(model, 2).includes('The requester is your owner.'));
-    assert.ok(instructions(model, 2).includes('Your reply is not private'));
+    assert.ok(!toolNames(model).includes('update_soul'));
+    assert.ok(instructions(model).includes('The requester is your owner.'));
+    assert.ok(instructions(model).includes('Your reply is not private'));
   });
 
   it("treats the owner's 'Brief me' DM as a normal DM", async (t) => {
@@ -271,5 +275,50 @@ describe('handleMessage', () => {
 
     assert.strictEqual(model.inputs.length, 1);
     assert.strictEqual(streamer.append.mock.callCount(), 1);
+  });
+
+  it('replies before learning in an engaged thread', async (t) => {
+    conversationStore.setHistory('C123', 't1', 'U123', []);
+    const model = scripted(t, () => say('No update yet.'));
+
+    await handle({ channel_type: 'channel', text: 'Any update?', thread_ts: 't1', ts: 't2' });
+
+    assert.strictEqual(model.inputs.length, 2);
+    assert.ok(!JSON.stringify(model.inputs[0]).includes('Learn from'));
+    assert.ok(JSON.stringify(model.inputs[1]).includes('Learn from'));
+    assert.strictEqual(streamer.append.mock.callCount(), 1);
+  });
+
+  it('still learns when the reply fails', async (t) => {
+    conversationStore.setHistory('C123', 't1', 'U123', []);
+    const model = scripted(t, (callNumber) => {
+      if (callNumber === 1) throw new Error('reply failed');
+      return say('Nothing to keep.');
+    });
+    const failingSay = mock.fn(async () => {
+      throw new Error('say failed');
+    });
+
+    await assert.rejects(
+      handle({ channel_type: 'channel', text: 'Any update?', thread_ts: 't1', ts: 't2' }, { say: failingSay }),
+      /say failed/,
+    );
+
+    assert.strictEqual(model.inputs.length, 2);
+    assert.ok(JSON.stringify(model.inputs[1]).includes('Learn from'));
+    assert.ok(logger.error.mock.calls[0].arguments[0].includes('reply failed'));
+  });
+
+  it('still replies when learning fails', async (t) => {
+    conversationStore.setHistory('C123', 't1', 'U123', []);
+    scripted(t, (callNumber) => {
+      if (callNumber === 2) throw new Error('learning failed');
+      return say('No update yet.');
+    });
+
+    await handle({ channel_type: 'channel', text: 'Any update?', thread_ts: 't1', ts: 't2' });
+
+    assert.strictEqual(streamer.append.mock.callCount(), 1);
+    assert.ok(logger.error.mock.calls[0].arguments[0].includes('learning failed'));
   });
 });
