@@ -16,5 +16,5 @@ registerListeners(app);
 
 (async () => {
   await app.start();
-  app.logger.info('Team Agent is running!');
+  app.logger.info('Personal Agent is running!');
 })();

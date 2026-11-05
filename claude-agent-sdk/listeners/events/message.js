@@ -1,14 +1,11 @@
 import { runAgent } from '../../agent/index.js';
 import { sessionStore } from '../../thread-context/index.js';
 import { buildFeedbackBlocks } from '../views/feedback-builder.js';
+import { buildReplyDeps } from './reply-deps.js';
 
 const LEARNED_SUBTYPES = [undefined, 'file_share', 'thread_broadcast'];
 
-const RUNBOOK_WRITES = [
-  'mcp__agent-tools__create_runbook',
-  'mcp__slack-mcp__slack_create_canvas',
-  'mcp__slack-mcp__slack_update_canvas',
-];
+const RUNBOOK_WRITES = ['mcp__agent-tools__create_runbook'];
 
 /**
  * @param {import('@slack/types').MessageEvent} event
@@ -28,9 +25,7 @@ function isLearnedMessageEvent(event) {
 
 /**
  * Handle messages sent to the agent via DM or in threads the bot is part of.
- *
- * The agent also learns from channel messages, adding anything they settle
- * to the team's runbooks.
+ * The agent also learns from channel messages, adding anything they settle to runbooks.
  * @param {import('@slack/bolt').AllMiddlewareArgs & import('@slack/bolt').SlackEventMiddlewareArgs<'message'>} args
  * @returns {Promise<void>}
  */
@@ -47,19 +42,19 @@ export async function handleMessage({ client, context, event, logger, say, saySt
         channelId: event.channel,
         threadTs: event.thread_ts || event.ts,
         messageTs: event.ts,
-        userToken: context.userToken,
+        userToken: undefined,
+        isOwner: false,
+        isPrivateReply: false,
       };
-      const { responseText, toolNames } = await runAgent(
-        `Learn from this channel message:\n\n${event.text || ''}`,
-        undefined,
-        deps,
-      );
-      if (toolNames.some((name) => RUNBOOK_WRITES.includes(name))) {
+      const result = await runAgent(`Learn from this channel message:\n\n${event.text || ''}`, deps, {
+        persistSession: false,
+      });
+      if (result.toolNames.some((name) => RUNBOOK_WRITES.includes(name))) {
         await client.chat.postEphemeral({
           channel: event.channel,
           user: /** @type {string} */ (context.userId),
           thread_ts: event.thread_ts,
-          markdown_text: responseText,
+          markdown_text: result.finalOutput,
         });
       }
     } catch (e) {
@@ -67,19 +62,11 @@ export async function handleMessage({ client, context, event, logger, say, saySt
     }
   }
 
-  // Skip message subtypes (edits, deletes, etc.)
   if (!isGenericMessageEvent(event)) return;
 
   const isThreadReply = !!event.thread_ts;
 
-  if (isDm) {
-    // DMs are always handled
-  } else if (isThreadReply) {
-    // Channel thread replies are handled only if the bot is already engaged
-    const session = sessionStore.getSession(event.channel, /** @type {string} */ (event.thread_ts));
-    if (session === null) return;
-  } else {
-    // Top-level channel messages are handled by app_mentioned
+  if (!isDm && !(isThreadReply && sessionStore.hasThread(event.channel, /** @type {string} */ (event.thread_ts)))) {
     return;
   }
 
@@ -89,34 +76,29 @@ export async function handleMessage({ client, context, event, logger, say, saySt
     const threadTs = event.thread_ts || event.ts;
     const userId = /** @type {string} */ (context.userId);
 
-    // Get session ID for conversation context
-    const existingSessionId = sessionStore.getSession(channelId, threadTs);
+    const sessionId = sessionStore.getSession(channelId, threadTs, userId);
 
-    // Set assistant thread status with loading messages
     await setStatus({
-      status: 'Thinking\u2026',
+      status: 'Thinking…',
       loading_messages: [
-        'Teaching the hamsters to type faster\u2026',
-        'Untangling the internet cables\u2026',
-        'Consulting the office goldfish\u2026',
-        'Polishing up the response just for you\u2026',
-        'Convincing the AI to stop overthinking\u2026',
+        'Teaching the hamsters to type faster…',
+        'Untangling the internet cables…',
+        'Consulting the office goldfish…',
+        'Polishing up the response just for you…',
+        'Convincing the AI to stop overthinking…',
       ],
     });
 
-    // Run the agent with deps for tool access
-    const deps = { client, userId, channelId, threadTs, messageTs: event.ts, userToken: context.userToken };
-    const { responseText, sessionId: newSessionId } = await runAgent(text, existingSessionId ?? undefined, deps);
+    const deps = buildReplyDeps(client, context, event, isDm);
+    const result = await runAgent(text, deps, { sessionId: sessionId ?? undefined });
 
-    // Stream response in thread with feedback buttons
     const streamer = sayStream();
-    await streamer.append({ markdown_text: responseText });
+    await streamer.append({ markdown_text: result.finalOutput });
     const feedbackBlocks = buildFeedbackBlocks();
     await streamer.stop({ blocks: feedbackBlocks });
 
-    // Store session ID for future context
-    if (newSessionId) {
-      sessionStore.setSession(channelId, threadTs, newSessionId);
+    if (result.sessionId) {
+      sessionStore.setSession(channelId, threadTs, userId, result.sessionId);
     }
   } catch (e) {
     logger.error(`Failed to handle message: ${e}`);

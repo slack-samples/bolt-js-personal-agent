@@ -1,31 +1,16 @@
 import assert from 'node:assert';
 import { beforeEach, describe, it, mock } from 'node:test';
 
-import { createRunbook, listRunbooks, readRunbook } from '../../agent/tools/index.js';
+import { addEmojiReaction, createRunbook, listRunbooks, readRunbook } from '../../agent/tools/index.js';
+import { invoke, slackError } from '../helpers.js';
 
 /**
- * @param {string} error
- * @param {string} [detail]
+ * @param {string} id
+ * @param {string} title
+ * @param {Record<string, any>} [sharing]
  */
-function slackError(error, detail) {
-  return Object.assign(new Error(error), {
-    data: {
-      ok: false,
-      error,
-      ...(detail && { detail }),
-    },
-  });
-}
-
-/**
- * @param {(deps: any) => import('@anthropic-ai/claude-agent-sdk').SdkMcpToolDefinition<any>} tool
- * @param {any} deps
- * @param {Record<string, any>} [args]
- * @returns {Promise<string>}
- */
-async function invoke(tool, deps, args = {}) {
-  const result = await tool(deps).handler(args, undefined);
-  return /** @type {{ text: string }} */ (result.content[0]).text;
+function canvas(id, title, sharing = { channels: ['C123'] }) {
+  return { id, title, permalink: `https://example.com/${id}`, ...sharing };
 }
 
 describe('tools', () => {
@@ -35,6 +20,7 @@ describe('tools', () => {
   beforeEach(() => {
     client = {
       canvases: { create: mock.fn(), getContent: mock.fn() },
+      conversations: { info: mock.fn() },
       files: {
         info: mock.fn(async () => ({
           file: {
@@ -44,6 +30,7 @@ describe('tools', () => {
         })),
         list: mock.fn(),
       },
+      users: { conversations: mock.fn() },
     };
     deps = {
       client,
@@ -56,18 +43,7 @@ describe('tools', () => {
 
   it('list_runbooks lists only runbooks', async () => {
     client.files.list = mock.fn(async () => ({
-      files: [
-        {
-          id: 'F123',
-          title: 'Runbook: Deploys',
-          permalink: 'https://example.com/F123',
-        },
-        {
-          id: 'F456',
-          title: 'Lunch orders',
-          permalink: 'https://example.com/F456',
-        },
-      ],
+      files: [canvas('F123', 'Runbook: Deploys'), canvas('F456', 'Lunch orders')],
     }));
 
     const result = await invoke(listRunbooks, deps);
@@ -84,10 +60,12 @@ describe('tools', () => {
   });
 
   it('read_runbook returns its markdown', async () => {
+    client.files.list = mock.fn(async () => ({ files: [canvas('F123', 'Runbook: Test')] }));
     client.canvases.getContent = mock.fn(async () => ({ content: '# Steps\n1. Rotate the secret' }));
 
     const result = await invoke(readRunbook, deps, { canvas_id: 'F123' });
 
+    assert.strictEqual(client.canvases.getContent.mock.callCount(), 1);
     assert.deepStrictEqual(client.canvases.getContent.mock.calls[0].arguments[0], {
       canvas_id: 'F123',
     });
@@ -95,6 +73,7 @@ describe('tools', () => {
   });
 
   it('read_runbook reports errors', async () => {
+    client.files.list = mock.fn(async () => ({ files: [canvas('F404', 'Runbook: Test')] }));
     client.canvases.getContent = mock.fn(async () => {
       throw slackError('canvas_not_found');
     });
@@ -108,8 +87,8 @@ describe('tools', () => {
     client.canvases.create = mock.fn(async () => ({ canvas_id: 'F123' }));
 
     const result = await invoke(createRunbook, deps, {
-      markdown: '# Steps\n1. Redeploy',
       topic: 'Deploys',
+      markdown: '# Steps\n1. Redeploy',
     });
 
     const args = client.canvases.create.mock.calls[0].arguments[0];
@@ -119,6 +98,7 @@ describe('tools', () => {
       type: 'markdown',
       markdown: '# Steps\n1. Redeploy',
     });
+    assert.strictEqual(client.files.info.mock.callCount(), 1);
     assert.deepStrictEqual(client.files.info.mock.calls[0].arguments[0], { file: 'F123' });
     assert.strictEqual(result, 'Created [Runbook: Deploys](https://example.slack.com/docs/T1/F123).');
   });
@@ -129,11 +109,67 @@ describe('tools', () => {
     });
 
     const result = await invoke(createRunbook, deps, {
-      markdown: '1. - x',
       topic: 'Deploys',
+      markdown: '1. - x',
     });
 
     assert.ok(result.includes('Unsupported nested list'));
     assert.ok(result.includes('call create_runbook again'));
+  });
+
+  it('lists only runbooks shared in the current channel', async () => {
+    client.files.list = mock.fn(async () => ({
+      files: [
+        canvas('F_HERE', 'Runbook: Here'),
+        canvas('F_HERE_PRIVATE', 'Runbook: Here too', { groups: ['C123'] }),
+        canvas('F_OTHER', 'Runbook: Other public channel', { channels: ['C_PUB'] }),
+        canvas('F_PRIV', 'Runbook: Private', { groups: ['G_PRIV'] }),
+      ],
+    }));
+
+    const result = await invoke(listRunbooks, deps);
+
+    assert.ok(result.includes('F_HERE'));
+    assert.ok(result.includes('F_HERE_PRIVATE'));
+    assert.ok(!result.includes('F_OTHER'));
+    assert.ok(!result.includes('F_PRIV'));
+    assert.strictEqual(client.conversations.info.mock.callCount(), 0);
+    assert.strictEqual(client.users.conversations.mock.callCount(), 0);
+  });
+
+  it('read_runbook refuses a runbook from another channel', async () => {
+    client.files.list = mock.fn(async () => ({
+      files: [canvas('F_OTHER', 'Runbook: Other', { channels: ['C_PUB'] })],
+    }));
+
+    const result = await invoke(readRunbook, deps, { canvas_id: 'F_OTHER' });
+
+    assert.strictEqual(result, "That runbook isn't available here.");
+    assert.strictEqual(client.canvases.getContent.mock.callCount(), 0);
+  });
+
+  it('treats null channels and groups as not shared', async () => {
+    client.files.list = mock.fn(async () => ({
+      files: [canvas('F_NULL', 'Runbook: Null', { channels: null, groups: null })],
+    }));
+
+    assert.strictEqual(await invoke(listRunbooks, deps), 'No runbooks yet.');
+  });
+
+  it('add_emoji_reaction reacts to the current message', async (t) => {
+    t.mock.method(Math, 'random', () => 0.5);
+    client.reactions = { add: mock.fn(async () => ({ ok: true })) };
+    deps.threadTs = '1700000000.000100';
+    deps.messageTs = '1700000000.000200';
+
+    const result = await invoke(addEmojiReaction, deps, { emoji_name: 'tada' });
+
+    assert.strictEqual(client.reactions.add.mock.callCount(), 1);
+    assert.deepStrictEqual(client.reactions.add.mock.calls[0].arguments[0], {
+      channel: 'C123',
+      timestamp: '1700000000.000200',
+      name: 'tada',
+    });
+    assert.strictEqual(result, 'Reacted with :tada:');
   });
 });

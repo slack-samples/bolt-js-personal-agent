@@ -1,6 +1,7 @@
 import { runAgent } from '../../agent/index.js';
 import { sessionStore } from '../../thread-context/index.js';
 import { buildFeedbackBlocks } from '../views/feedback-builder.js';
+import { buildReplyDeps } from './reply-deps.js';
 
 /**
  * Handle app_mention events and run the agent.
@@ -14,7 +15,6 @@ export async function handleAppMentioned({ client, context, event, logger, say, 
     const threadTs = event.thread_ts || event.ts;
     const userId = /** @type {string} */ (context.userId);
 
-    // Strip the bot mention from the text
     const cleanedText = text.replace(/<@[A-Z0-9]+>/g, '').trim();
 
     if (!cleanedText) {
@@ -25,34 +25,29 @@ export async function handleAppMentioned({ client, context, event, logger, say, 
       return;
     }
 
-    // Set assistant thread status with loading messages
     await setStatus({
-      status: 'Thinking\u2026',
+      status: 'Thinking…',
       loading_messages: [
-        'Teaching the hamsters to type faster\u2026',
-        'Untangling the internet cables\u2026',
-        'Consulting the office goldfish\u2026',
-        'Polishing up the response just for you\u2026',
-        'Convincing the AI to stop overthinking\u2026',
+        'Teaching the hamsters to type faster…',
+        'Untangling the internet cables…',
+        'Consulting the office goldfish…',
+        'Polishing up the response just for you…',
+        'Convincing the AI to stop overthinking…',
       ],
     });
 
-    // Get session ID for conversation context
-    const existingSessionId = sessionStore.getSession(channelId, threadTs);
+    const sessionId = sessionStore.getSession(channelId, threadTs, userId);
 
-    // Run the agent with deps for tool access
-    const deps = { client, userId, channelId, threadTs, messageTs: event.ts, userToken: context.userToken };
-    const { responseText, sessionId: newSessionId } = await runAgent(cleanedText, existingSessionId ?? undefined, deps);
+    const deps = buildReplyDeps(client, context, event, false);
+    const result = await runAgent(cleanedText, deps, { sessionId: sessionId ?? undefined });
 
-    // Stream response in thread with feedback buttons
     const streamer = sayStream();
-    await streamer.append({ markdown_text: responseText });
+    await streamer.append({ markdown_text: result.finalOutput });
     const feedbackBlocks = buildFeedbackBlocks();
     await streamer.stop({ blocks: feedbackBlocks });
 
-    // Store session ID for future context
-    if (newSessionId) {
-      sessionStore.setSession(channelId, threadTs, newSessionId);
+    if (result.sessionId) {
+      sessionStore.setSession(channelId, threadTs, userId, result.sessionId);
     }
   } catch (e) {
     logger.error(`Failed to handle app mention: ${e}`);

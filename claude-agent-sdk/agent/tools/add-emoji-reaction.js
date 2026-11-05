@@ -1,6 +1,8 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 
+import { textResult } from './text-result.js';
+
 const EMOJI_DESCRIPTION =
   "Add an emoji reaction to the user's current message to acknowledge the topic.\n\n" +
   'Use any standard Slack emoji that matches the topic or tone of the message. ' +
@@ -16,6 +18,8 @@ const EMOJI_DESCRIPTION =
   '- Network/connectivity: satellite, signal_strength\n' +
   '- Agreement/acknowledgment: thumbsup, ok_hand, saluting_face, +1';
 
+export const SKIP_RATE = 0.15;
+
 /** @param {import('../agent.js').AgentDeps} deps */
 export const addEmojiReaction = (deps) =>
   tool(
@@ -23,13 +27,8 @@ export const addEmojiReaction = (deps) =>
     EMOJI_DESCRIPTION,
     { emoji_name: z.string().describe("The Slack emoji name without colons (e.g. 'tada', 'wrench', 'pray').") },
     async ({ emoji_name }) => {
-      // Skip ~15% of reactions to feel more natural
-      if (Math.random() < 0.15) {
-        return {
-          content: [
-            { type: 'text', text: `Skipped :${emoji_name}: reaction (randomly omitted to avoid over-reacting)` },
-          ],
-        };
+      if (Math.random() < SKIP_RATE) {
+        return textResult(`Skipped :${emoji_name}: reaction (randomly omitted to avoid over-reacting)`);
       }
 
       try {
@@ -38,10 +37,10 @@ export const addEmojiReaction = (deps) =>
           timestamp: deps.messageTs,
           name: emoji_name,
         });
-        return { content: [{ type: 'text', text: `Reacted with :${emoji_name}:` }] };
+        return textResult(`Reacted with :${emoji_name}:`);
       } catch (e) {
         const err = /** @type {any} */ (e);
-        return { content: [{ type: 'text', text: `Could not add reaction: ${err.data?.error || err.message}` }] };
+        return textResult(`Could not add reaction: ${err.data?.error || err.message}`);
       }
     },
   );

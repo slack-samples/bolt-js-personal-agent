@@ -1,36 +1,29 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk';
 
-const RUNBOOK_PREFIX = 'Runbook:';
+import { channelRunbooks } from './channel-runbooks.js';
+import { textResult } from './text-result.js';
 
 /** @param {import('../agent.js').AgentDeps} deps */
 export const listRunbooks = (deps) =>
   tool(
     'list_runbooks',
-    "List the team's runbooks: canvases titled `Runbook: <topic>`.\n\n" +
+    'List the runbooks in this channel: canvases titled `Runbook: <topic>`.\n\n' +
       'Call this before answering a request or writing a runbook, then read the ' +
       'one that covers the topic with `read_runbook`.',
     {},
     async () => {
-      let text;
+      let runbooks;
       try {
-        const response = await deps.client.files.list({
-          types: 'canvas',
-        });
-        const runbooks = (response.files ?? [])
-          .filter((file) => file.title?.startsWith(RUNBOOK_PREFIX))
-          .map((file) => `- [${file.title}](${file.permalink}) (\`${file.id}\`)`);
-        text = runbooks.length > 0 ? runbooks.join('\n') : 'No runbooks yet.';
+        runbooks = await channelRunbooks(deps);
       } catch (e) {
         const err = /** @type {any} */ (e);
-        text = `Could not list runbooks: ${err.data?.error || err.message}`;
+        return textResult(`Could not list runbooks: ${err.data?.error || err.message}`);
       }
-      return {
-        content: [
-          {
-            type: 'text',
-            text,
-          },
-        ],
-      };
+
+      const result = runbooks.map((file) => `- [${file.title}](${file.permalink}) (\`${file.id}\`)`);
+      if (result.length === 0) {
+        return textResult('No runbooks yet.');
+      }
+      return textResult(result.join('\n'));
     },
   );

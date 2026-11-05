@@ -13,14 +13,6 @@ const manifest = JSON.parse(readFileSync('manifest.json', 'utf-8'));
 const botScopes = manifest.oauth_config.scopes.bot;
 const userScopes = manifest.oauth_config.scopes.user;
 
-// ---------------------------------------------------------------------------
-// Installation store with bot-token fallback
-// ---------------------------------------------------------------------------
-// When installed via Slack CLI, SLACK_BOT_TOKEN is available but Bolt clears
-// it when OAuth options are present. This wrapper lets the bot token serve as
-// a fallback so App Home (with the OAuth install URL) and basic bot operations
-// work before anyone has completed the OAuth flow.
-
 const fileStore = new FileInstallationStore({ baseDir: './data/installations' });
 const fallbackBotToken = process.env.SLACK_BOT_TOKEN;
 
@@ -46,7 +38,7 @@ const app = new App({
   ignoreSelf: false,
   clientId: process.env.SLACK_CLIENT_ID,
   clientSecret: process.env.SLACK_CLIENT_SECRET,
-  stateSecret: 'bolt-js-team-agent',
+  stateSecret: 'bolt-js-personal-agent',
   scopes: botScopes,
   installationStore,
   installerOptions: {
@@ -60,7 +52,7 @@ registerListeners(app);
 (async () => {
   const port = Number.parseInt(process.env.PORT || '3000', 10);
   await app.start(port);
-  app.logger.info(`Team Agent is running on port ${port}!`);
+  app.logger.info(`Personal Agent is running on port ${port}!`);
   if (process.env.SLACK_REDIRECT_URI) {
     const origin = new URL(process.env.SLACK_REDIRECT_URI).origin;
     app.logger.info(`Connect the Slack MCP Server: ${origin}/slack/install`);
