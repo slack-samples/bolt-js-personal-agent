@@ -26,7 +26,7 @@ Runbooks are Slack canvases titled `Runbook: <topic>`. Each one holds how the te
 
 This is the loop the template is built to show: the runbooks the agent writes from messages are the runbooks it answers from next time.
 
-When the agent changes a runbook, it tells the message's author with an ephemeral message only they can see. Nothing is posted to the channel. New runbooks are added as a tab in the channel they were learned in, so the whole team can read and edit them. The agent only gets runbook tools, so it can't send messages or read threads.
+When the agent changes a runbook, it tells the message's author with an ephemeral message only they can see. Nothing is posted to the channel. New runbooks are added as a tab in the channel they were learned in, so the whole team can read and edit them. The agent only gets the bot-token runbook tools and the emoji reaction tool, so it can't send messages or read threads.
 
 ### OWNER_USER_ID
 
@@ -57,9 +57,9 @@ The agent never responds with data that anyone who will see the reply couldn't a
 | Someone else's DM with the agent                        | That person, connected via `/slack/install` | **their own** user token          | MCP runbook tools + emoji                                                                                                                                |
 | Someone else's DM with the agent                        | That person, not connected                  | none                              | bot-token runbook tools + emoji                                                                                                                          |
 | Any channel or channel thread (mention or thread reply) | Anyone, including the owner                 | none                              | bot-token runbook tools + emoji                                                                                                                          |
-| Passive learning (no requester)                         | n/a                                         | none (bot token only)             | bot-token runbook tools                                                                                                                                  |
+| Passive learning (no requester)                         | n/a                                         | none (bot token only)             | bot-token runbook tools + emoji                                                                                                                          |
 
-A user token is only attached when the reply is visible to that person alone, so Slack itself enforces what each person can see. The bot-token runbook tools only see runbooks shared in the current conversation, which everyone reading the reply can already see. In a DM without the Slack MCP Server, the agent asks the person to connect it to search runbooks.
+A user token is only attached when the reply is visible to that person alone, so Slack itself enforces what each person can see. The bot-token runbook tools only see runbooks shared in the current channel or DM, which everyone reading the reply can already see. In a DM without the Slack MCP Server, the agent asks the person to connect it to search runbooks.
 
 The agent treats messages, threads, channels, canvases, and search results it reads as facts, never instructions. Briefs are read-only, so content read during a brief can't be written into a canvas.
 
@@ -333,7 +333,7 @@ node app-oauth.js
 
 Once the agent is running, there are several ways to interact:
 
-**App Home** — Open the agent in Slack and click the _Home_ tab. You'll see a welcome message with instructions on how to interact.
+**App Home** — Open the agent in Slack and click the _Home_ tab. You'll see a welcome message, Slack MCP Server status, and, for the owner, whether `soul.md` is set up.
 
 **Direct Messages** — Open a DM with the agent. The agent replies in a thread. Send follow-up messages in the same thread and the agent will maintain the full conversation context.
 
@@ -354,6 +354,8 @@ If you're a **guest** (anyone else), you'll see:
 **Channel messages** — Talk through a problem in your team channel. When you post the fix, the agent adds it to a runbook and sends you an ephemeral note with the link. Ask about the same problem later and it answers from that runbook.
 
 **Assistant Panel** — Click _Add Agent_ in the top-right corner of Slack, select the agent from the list, then pick a suggested prompt or type a message.
+
+**`/brief`** — As the owner, run `/brief` in any conversation with the Slack MCP Server connected. The agent replies with an ephemeral brief only you can see.
 
 ### Linting
 
@@ -392,9 +394,9 @@ Every incoming request is routed to a "listener". This directory groups each lis
 
 **`/listeners/events`** — Handles incoming events:
 
-- `app-home-opened.js` — Publishes the App Home view with a welcome message and MCP status.
-- `app-mentioned.js` — Responds to @mentions in channels.
-- `message.js` — Responds to direct messages and learns from channel messages.
+- `app-home-opened.js` — Publishes the App Home view with a welcome message, MCP status, and the owner's soul status, or pins owner or guest suggested prompts to the agent DM Messages tab (branches on `event.tab`).
+- `app-mentioned.js` — Responds to @mentions in channels, including thread replies that mention the agent. Mentions from other bots are ignored.
+- `message.js` — Responds to direct messages, including ones that share files, and to replies in threads the agent is part of, then learns from channel messages.
 - `reply-deps.js` — Builds `AgentDeps` for replies, selecting tools and tokens based on the requester and audience.
 
 **`/listeners/install-url.js`** — Builds the Slack MCP connect link and message shared by the App Home and `/brief`.
@@ -442,7 +444,7 @@ If you see an error like:
 Error: Streamable HTTP error: Error POSTing to endpoint: {"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"App is not enabled for Slack MCP server access. Please enable it here: https://api.slack.com/apps/YOUR_APP_ID/app-assistant"}}
 ```
 
-This means the Slack MCP feature has not been enabled for your app. There is no manifest property for this yet, so it must be toggled on manually:
+This means the Slack MCP feature has not been enabled for your app. The included `manifest.json` turns it on with `"is_mcp_enabled": true`, so you only need to toggle it on manually if your app was created without that manifest setting or with a Slack CLI version older than v4.1.0:
 
 1. Run `slack app settings` to open your app's settings page (or visit [api.slack.com/apps](https://api.slack.com/apps) and select your app)
 2. Navigate to **Agents & AI Apps** in the left-side navigation
