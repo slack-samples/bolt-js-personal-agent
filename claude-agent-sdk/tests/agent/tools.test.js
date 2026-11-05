@@ -150,10 +150,25 @@ describe('tools', () => {
 
   it('treats null channels and groups as not shared', async () => {
     client.files.list = mock.fn(async () => ({
-      files: [canvas('F_NULL', 'Runbook: Null', { channels: null, groups: null })],
+      files: [canvas('F_NULL', 'Runbook: Null', { channels: null, groups: null, ims: null })],
     }));
 
     assert.strictEqual(await invoke(listRunbooks, deps), 'No runbooks yet.');
+  });
+
+  it('lists runbooks shared in the current DM only', async () => {
+    deps.channelId = 'D123';
+    client.files.list = mock.fn(async () => ({
+      files: [
+        canvas('F_DM', 'Runbook: DM', { ims: ['D123'] }),
+        canvas('F_OTHER_DM', 'Runbook: Other DM', { ims: ['D456'] }),
+      ],
+    }));
+
+    const result = await invoke(listRunbooks, deps);
+
+    assert.ok(result.includes('F_DM'));
+    assert.ok(!result.includes('F_OTHER_DM'));
   });
 
   it('add_emoji_reaction reacts to the current message', async (t) => {

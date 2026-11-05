@@ -32,7 +32,9 @@ describe('channelRunbooks', () => {
             { title: 'Runbook: Deploy', channels: ['C123'], groups: [] },
             { title: 'Not a runbook', channels: ['C123'], groups: [] },
             { title: 'Runbook: Other', channels: ['C456'], groups: [] },
+            { title: 'Runbook: Other DM', channels: [], groups: [], ims: ['D456'] },
             { title: 'Runbook: Shared', channels: [], groups: ['C123'] },
+            { title: 'Runbook: In a DM', channels: [], groups: [], ims: ['C123'] },
           ],
         })),
       },
@@ -40,8 +42,9 @@ describe('channelRunbooks', () => {
 
     const runbooks = await channelRunbooks(makeDeps(client));
 
-    assert.strictEqual(runbooks.length, 2);
-    assert.strictEqual(runbooks[0].title, 'Runbook: Deploy');
-    assert.strictEqual(runbooks[1].title, 'Runbook: Shared');
+    assert.deepStrictEqual(
+      runbooks.map((runbook) => runbook.title),
+      ['Runbook: Deploy', 'Runbook: Shared', 'Runbook: In a DM'],
+    );
   });
 });

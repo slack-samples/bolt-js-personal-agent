@@ -189,10 +189,32 @@ describe('runbook tools', () => {
   it('treats null channels and groups as not shared', async () => {
     client.files.list.mock.mockImplementation(
       filesList([
-        { id: 'F_NULL', title: 'Runbook: Null', permalink: 'https://example.com/F_NULL', channels: null, groups: null },
+        {
+          id: 'F_NULL',
+          title: 'Runbook: Null',
+          permalink: 'https://example.com/F_NULL',
+          channels: null,
+          groups: null,
+          ims: null,
+        },
       ]),
     );
 
     assert.strictEqual(await invoke(listRunbooks, deps), 'No runbooks yet.');
+  });
+
+  it('lists runbooks shared in the current DM only', async () => {
+    deps.channelId = 'D123';
+    client.files.list.mock.mockImplementation(
+      filesList([
+        { id: 'F_DM', title: 'Runbook: DM', permalink: 'https://example.com/F_DM', ims: ['D123'] },
+        { id: 'F_OTHER_DM', title: 'Runbook: Other DM', permalink: 'https://example.com/F_OTHER_DM', ims: ['D456'] },
+      ]),
+    );
+
+    const result = await invoke(listRunbooks, deps);
+
+    assert.ok(result.includes('F_DM'));
+    assert.ok(!result.includes('F_OTHER_DM'));
   });
 });

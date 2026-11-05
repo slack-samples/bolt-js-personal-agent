@@ -7,6 +7,7 @@ const RUNBOOK_PREFIX = 'Runbook:';
  * @property {string} [permalink]
  * @property {string[] | null} [channels]
  * @property {string[] | null} [groups]
+ * @property {string[] | null} [ims]
  */
 
 /**
@@ -14,7 +15,7 @@ const RUNBOOK_PREFIX = 'Runbook:';
  * @returns {string[]}
  */
 export function sharedIn(runbook) {
-  return [...(runbook.channels ?? []), ...(runbook.groups ?? [])];
+  return [...(runbook.channels ?? []), ...(runbook.groups ?? []), ...(runbook.ims ?? [])];
 }
 
 /**

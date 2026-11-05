@@ -5,7 +5,7 @@ const RUNBOOK_PREFIX = 'Runbook:';
  * @returns {string[]}
  */
 function sharedIn(runbook) {
-  return [...(runbook.channels ?? []), ...(runbook.groups ?? [])];
+  return [...(runbook.channels ?? []), ...(runbook.groups ?? []), ...(runbook.ims ?? [])];
 }
 
 /**
