@@ -9,14 +9,6 @@ const RUNBOOK_WRITES = ['mcp__agent-tools__create_runbook'];
 
 /**
  * @param {import('@slack/types').MessageEvent} event
- * @returns {event is import('@slack/types').GenericMessageEvent}
- */
-function isGenericMessageEvent(event) {
-  return !('subtype' in event && event.subtype !== undefined);
-}
-
-/**
- * @param {import('@slack/types').MessageEvent} event
  * @returns {event is import('@slack/types').GenericMessageEvent | import('@slack/types').FileShareMessageEvent | import('@slack/types').ThreadBroadcastMessageEvent}
  */
 function isLearnedMessageEvent(event) {
@@ -70,7 +62,7 @@ export async function handleMessage(args) {
  * @returns {Promise<void>}
  */
 async function replyToMessage({ client, context, event, logger, say, sayStream, setStatus }, isDm) {
-  if (!isGenericMessageEvent(event)) return;
+  if (!isLearnedMessageEvent(event)) return;
 
   const isThreadReply = !!event.thread_ts;
 
@@ -80,7 +72,7 @@ async function replyToMessage({ client, context, event, logger, say, sayStream, 
 
   try {
     const channelId = event.channel;
-    const text = event.text || '';
+    const text = event.text ?? '';
 
     if (!isDm) {
       const botUserId = await resolveBotUserId(client, context);
@@ -140,7 +132,7 @@ async function learnFromMessage({ client, context, logger }, event) {
       isOwner: false,
       isPrivateReply: false,
     };
-    const result = await runAgent(`Learn from this channel message:\n\n${event.text || ''}`, deps, {
+    const result = await runAgent(`Learn from this channel message:\n\n${event.text ?? ''}`, deps, {
       persistSession: false,
     });
     if (result.toolNames.some((name) => RUNBOOK_WRITES.includes(name))) {

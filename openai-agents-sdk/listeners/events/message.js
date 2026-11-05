@@ -9,14 +9,6 @@ const RUNBOOK_WRITES = new Set(['create_runbook']);
 
 /**
  * @param {import('@slack/types').MessageEvent} event
- * @returns {event is import('@slack/types').GenericMessageEvent}
- */
-function isGenericMessageEvent(event) {
-  return !('subtype' in event && event.subtype !== undefined);
-}
-
-/**
- * @param {import('@slack/types').MessageEvent} event
  * @returns {event is import('@slack/types').GenericMessageEvent | import('@slack/types').FileShareMessageEvent | import('@slack/types').ThreadBroadcastMessageEvent}
  */
 function isLearnedMessageEvent(event) {
@@ -71,13 +63,13 @@ export async function handleMessage(args) {
  * @returns {Promise<void>}
  */
 async function replyToMessage({ client, context, event, logger, say, sayStream, setStatus }, isDm) {
-  if (!isGenericMessageEvent(event)) return;
+  if (!isLearnedMessageEvent(event)) return;
 
   if (!isDm && !(event.thread_ts && conversationStore.hasThread(event.channel, event.thread_ts))) return;
 
   try {
     const channelId = event.channel;
-    const text = event.text || '';
+    const text = event.text ?? '';
 
     if (!isDm) {
       const botUserId = await resolveBotUserId(client, context);
@@ -140,7 +132,7 @@ async function learnFromMessage({ client, context, logger }, event) {
         isPrivateReply: false,
       },
     );
-    const result = await runAgent(`Learn from this channel message:\n\n${event.text || ''}`, deps);
+    const result = await runAgent(`Learn from this channel message:\n\n${event.text ?? ''}`, deps);
     if (result.newItems.some((item) => RUNBOOK_WRITES.has(/** @type {any} */ (item.rawItem).name))) {
       await client.chat.postEphemeral({
         channel: event.channel,

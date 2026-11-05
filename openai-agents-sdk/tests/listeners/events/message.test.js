@@ -321,4 +321,40 @@ describe('handleMessage', () => {
     assert.strictEqual(streamer.append.mock.callCount(), 1);
     assert.ok(logger.error.mock.calls[0].arguments[0].includes('learning failed'));
   });
+
+  it('replies to a DM that shares a file', async (t) => {
+    const model = scripted(t, () => say('Got the file.'));
+
+    await handle({ channel_type: 'im', subtype: 'file_share', ts: '1700000000.000100' });
+
+    assert.strictEqual(model.inputs.length, 1);
+    assert.strictEqual(streamer.append.mock.callCount(), 1);
+  });
+
+  it('replies to a broadcast reply in an engaged thread', async (t) => {
+    conversationStore.setHistory('C123', 't1', 'U123', []);
+    const model = scripted(t, () => say('No update yet.'));
+
+    await handle({
+      channel_type: 'channel',
+      subtype: 'thread_broadcast',
+      text: 'Any update?',
+      thread_ts: 't1',
+      ts: 't2',
+    });
+
+    assert.strictEqual(model.inputs.length, 2);
+    assert.ok(JSON.stringify(model.inputs[0]).includes('Any update?'));
+    assert.ok(!JSON.stringify(model.inputs[0]).includes('Learn from'));
+    assert.strictEqual(streamer.append.mock.callCount(), 1);
+  });
+
+  it('does not reply to edits in a DM', async (t) => {
+    const model = scripted(t, () => say('Hi.'));
+
+    await handle({ channel_type: 'im', subtype: 'message_changed', ts: '1700000000.000100' });
+
+    assert.strictEqual(model.inputs.length, 0);
+    assert.strictEqual(streamer.append.mock.callCount(), 0);
+  });
 });

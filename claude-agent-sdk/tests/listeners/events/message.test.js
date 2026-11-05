@@ -72,7 +72,11 @@ describe('handleMessage', () => {
 
   it('never resumes or stores a session while learning', async (t) => {
     sessionStore.setSession('C123', 't1', 'U123', 'reply-session');
-    const query = t.mock.method(sdk, 'query', answer(LEARNED, ['mcp__agent-tools__create_runbook']));
+    const learn = answer(LEARNED, ['mcp__agent-tools__create_runbook'], 'learn-session');
+    const reply = answer('Done.', [], 'reply-session');
+    const query = t.mock.method(sdk, 'query', (/** @type {any} */ request) =>
+      request.prompt.startsWith('Learn from') ? learn() : reply(),
+    );
 
     await handle({
       channel_type: 'channel',
@@ -82,8 +86,9 @@ describe('handleMessage', () => {
       ts: 't2',
     });
 
-    assert.strictEqual(query.mock.callCount(), 1);
-    const { options } = callOptions(query);
+    assert.strictEqual(query.mock.callCount(), 2);
+    const { prompt, options } = callOptions(query, 1);
+    assert.ok(prompt.startsWith('Learn from'));
     assert.strictEqual(options.resume, undefined);
     assert.strictEqual(options.persistSession, false);
     assert.strictEqual(sessionStore.getSession('C123', 't1', 'U123'), 'reply-session');
@@ -319,5 +324,41 @@ describe('handleMessage', () => {
 
     assert.strictEqual(streamer.append.mock.callCount(), 1);
     assert.ok(logger.error.mock.calls[0].arguments[0].includes('learning failed'));
+  });
+
+  it('replies to a DM that shares a file', async (t) => {
+    const query = t.mock.method(sdk, 'query', answer('Got the file.'));
+
+    await handle({ channel_type: 'im', subtype: 'file_share', ts: '1700000000.000100' });
+
+    assert.strictEqual(query.mock.callCount(), 1);
+    assert.strictEqual(callOptions(query).prompt, '');
+    assert.strictEqual(streamer.append.mock.callCount(), 1);
+  });
+
+  it('replies to a broadcast reply in an engaged thread', async (t) => {
+    sessionStore.setSession('C123', 't1', 'U123', 'reply-session');
+    const query = t.mock.method(sdk, 'query', answer('No update yet.'));
+
+    await handle({
+      channel_type: 'channel',
+      subtype: 'thread_broadcast',
+      text: 'Any update?',
+      thread_ts: 't1',
+      ts: 't2',
+    });
+
+    assert.strictEqual(query.mock.callCount(), 2);
+    assert.strictEqual(callOptions(query).prompt, 'Any update?');
+    assert.strictEqual(streamer.append.mock.callCount(), 1);
+  });
+
+  it('does not reply to edits in a DM', async (t) => {
+    const query = t.mock.method(sdk, 'query', answer('Hi.'));
+
+    await handle({ channel_type: 'im', subtype: 'message_changed', ts: '1700000000.000100' });
+
+    assert.strictEqual(query.mock.callCount(), 0);
+    assert.strictEqual(streamer.append.mock.callCount(), 0);
   });
 });
