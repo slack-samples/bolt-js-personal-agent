@@ -36,6 +36,7 @@ const app = new App({
   logLevel: LogLevel.DEBUG,
   signingSecret: process.env.SLACK_SIGNING_SECRET,
   ignoreSelf: false,
+  clientOptions: { slackApiUrl: process.env.SLACK_API_URL },
   clientId: process.env.SLACK_CLIENT_ID,
   clientSecret: process.env.SLACK_CLIENT_SECRET,
   stateSecret: 'bolt-js-personal-agent',

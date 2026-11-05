@@ -10,6 +10,7 @@ const app = new App({
   socketMode: true,
   logLevel: LogLevel.DEBUG,
   ignoreSelf: false,
+  clientOptions: { slackApiUrl: process.env.SLACK_API_URL },
 });
 
 registerListeners(app);
