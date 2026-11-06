@@ -21,13 +21,13 @@ function makeDeps(overrides = {}) {
 
 describe('soul', () => {
   it('loadSoul falls back to the template when missing', () => {
-    const result = loadSoul(join(tempDir(), 'soul.md'));
+    const result = loadSoul(join(tempDir(), 'SOUL.md'));
     assert.ok(result.includes('## Goals'));
     assert.ok(isTemplate(result));
   });
 
   it('loadSoul falls back when unreadable', () => {
-    const directoryPath = join(tempDir(), 'soul.md');
+    const directoryPath = join(tempDir(), 'SOUL.md');
     mkdirSync(directoryPath);
     const result = loadSoul(directoryPath);
     assert.ok(result.includes('## Goals'));
@@ -35,7 +35,7 @@ describe('soul', () => {
   });
 
   it('save then load round trips', () => {
-    const path = join(tempDir(), 'soul.md');
+    const path = join(tempDir(), 'SOUL.md');
     const content = '# Soul\n## Goals\nShip it';
     saveSoul(content, path);
     const result = loadSoul(path);

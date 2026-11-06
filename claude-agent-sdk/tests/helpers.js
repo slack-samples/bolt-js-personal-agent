@@ -71,7 +71,7 @@ export function useSoul(t, content) {
     soulFiles.soulPath = soulPath;
     soulFiles.templatePath = templatePath;
   });
-  const path = join(tempDir(), 'soul.md');
+  const path = join(tempDir(), 'SOUL.md');
   if (content !== undefined) {
     writeFileSync(path, content);
   }

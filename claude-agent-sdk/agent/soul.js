@@ -6,8 +6,8 @@ export const TEMPLATE_MARKER = '<!-- soul-template -->';
 export const FALLBACK_TEMPLATE = `${TEMPLATE_MARKER}\n# Soul\n\n## Identity\n\n## About me\n\n## Goals\n`;
 
 export const soulFiles = {
-  soulPath: fileURLToPath(new URL('../soul.md', import.meta.url)),
-  templatePath: fileURLToPath(new URL('../soul.template.md', import.meta.url)),
+  soulPath: fileURLToPath(new URL('../SOUL.md', import.meta.url)),
+  templatePath: fileURLToPath(new URL('../SOUL.template.md', import.meta.url)),
 };
 
 /**

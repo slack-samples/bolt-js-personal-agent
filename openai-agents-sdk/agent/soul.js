@@ -3,8 +3,8 @@ import { fileURLToPath } from 'node:url';
 
 export const TEMPLATE_MARKER = '<!-- soul-template -->';
 
-export const SOUL_PATH = fileURLToPath(new URL('../soul.md', import.meta.url));
-export const TEMPLATE_PATH = fileURLToPath(new URL('../soul.template.md', import.meta.url));
+export const SOUL_PATH = fileURLToPath(new URL('../SOUL.md', import.meta.url));
+export const TEMPLATE_PATH = fileURLToPath(new URL('../SOUL.template.md', import.meta.url));
 
 const FALLBACK_TEMPLATE = `${TEMPLATE_MARKER}\n# Soul\n\n## Identity\n\n## About me\n\n## Goals\n`;
 

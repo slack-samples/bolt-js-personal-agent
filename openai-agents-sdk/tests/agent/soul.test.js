@@ -17,14 +17,14 @@ function tmpDir(t) {
 }
 
 describe('soul', () => {
-  it('falls back to the template when soul.md is missing', (t) => {
-    const result = loadSoul(path.join(tmpDir(t), 'soul.md'));
+  it('falls back to the template when SOUL.md is missing', (t) => {
+    const result = loadSoul(path.join(tmpDir(t), 'SOUL.md'));
     assert.ok(result.includes('## Goals'));
     assert.ok(isTemplate(result));
   });
 
-  it('falls back when soul.md is unreadable', (t) => {
-    const directoryPath = path.join(tmpDir(t), 'soul.md');
+  it('falls back when SOUL.md is unreadable', (t) => {
+    const directoryPath = path.join(tmpDir(t), 'SOUL.md');
     fs.mkdirSync(directoryPath);
     const result = loadSoul(directoryPath);
     assert.ok(result.includes('## Goals'));
@@ -32,7 +32,7 @@ describe('soul', () => {
   });
 
   it('round-trips a save and load', (t) => {
-    const soulPath = path.join(tmpDir(t), 'soul.md');
+    const soulPath = path.join(tmpDir(t), 'SOUL.md');
     const content = '# Soul\n## Goals\nShip it';
     saveSoul(content, soulPath);
     const result = loadSoul(soulPath);
@@ -41,7 +41,7 @@ describe('soul', () => {
   });
 
   it('falls back inline when the template is unreadable', (t) => {
-    const soulPath = path.join(tmpDir(t), 'soul.md');
+    const soulPath = path.join(tmpDir(t), 'SOUL.md');
     const original = fs.readFileSync;
     const readFileSync = mock.method(fs, 'readFileSync', (/** @type {any[]} */ ...args) => {
       if (args[0] === TEMPLATE_PATH) {
@@ -92,7 +92,7 @@ describe('update_soul', () => {
     assert.strictEqual(writeFileSync.mock.callCount(), 0);
   });
 
-  it('writes soul.md for the owner in a DM', async () => {
+  it('writes SOUL.md for the owner in a DM', async () => {
     deps.isOwner = true;
     deps.isPrivateReply = true;
     const content = '# Soul\n## Goals\nShip it';
