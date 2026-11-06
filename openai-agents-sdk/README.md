@@ -425,7 +425,7 @@ The `soul.js` file reads and writes `soul.md`.
 
 The `deps.js` file defines the `AgentDeps` class passed to the agent at runtime, providing access to the Slack client and conversation context.
 
-The `tools` directory contains the runbook tools (`list-runbooks.js`, `read-runbook.js`, `create-runbook.js`), which call `files.list`, `canvases.getContent`, and `canvases.create` with the bot token; `channel-runbooks.js` limits them to runbooks shared in the current conversation; `soul.js` implements `update_soul` (owner-only); and `emoji-reaction.js` shows a request was picked up. Each tool is defined using `tool()` from `@openai/agents`.
+The `tools` directory contains the runbook tools (`list-runbooks.js`, `read-runbook.js`, `create-runbook.js`), which call `files.list`, `canvases.getContent`, and `canvases.create` with the bot token; `channel-runbooks.js` limits them to runbooks shared in the current conversation; `update-soul.js` implements `update_soul` (owner-only); and `emoji-reaction.js` shows a request was picked up. Each tool is defined using `tool()` from `@openai/agents`.
 
 ### `/thread-context`
 
