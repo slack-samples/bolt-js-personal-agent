@@ -1,11 +1,11 @@
-import { isOwner, replyUserToken } from '../../agent/access.js';
+import { isOwner, replyUserToken } from './access.js';
 
 /**
  * @param {import('@slack/web-api').WebClient} client
  * @param {import('@slack/bolt').Context} context
  * @param {{ channel: string, ts: string, thread_ts?: string }} event
  * @param {boolean} isPrivateReply
- * @returns {import('../../agent/agent.js').AgentDeps}
+ * @returns {import('./agent.js').AgentDeps}
  */
 export function buildReplyDeps(client, context, event, isPrivateReply) {
   const userId = /** @type {string} */ (context.userId);

@@ -1,5 +1,5 @@
-import { isOwner, replyUserToken } from '../../agent/access.js';
-import { AgentDeps } from '../../agent/index.js';
+import { isOwner, replyUserToken } from './access.js';
+import { AgentDeps } from './deps.js';
 
 /**
  * Build the agent deps for a reply, attaching the user token only when the reply is private.

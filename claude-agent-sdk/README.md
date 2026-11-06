@@ -404,7 +404,6 @@ Every incoming request is routed to a "listener". This directory groups each lis
 - `app-home-opened.js` — Publishes the App Home view with a welcome message, MCP status, and the owner's soul status, or pins owner or guest suggested prompts to the agent DM Messages tab (branches on `event.tab`).
 - `app-mentioned.js` — Responds to @mentions in channels, including thread replies that mention the agent. Mentions from other bots are ignored.
 - `message.js` — Responds to direct messages, including ones that share files, and to replies in threads the agent is part of, then learns from channel messages.
-- `reply-deps.js` — Builds `AgentDeps` for replies, selecting tools and tokens based on the requester and audience.
 
 **`/listeners/install-url.js`** — Builds the Slack MCP connect link and message shared by the App Home and `/brief`.
 
@@ -426,6 +425,8 @@ Every incoming request is routed to a "listener". This directory groups each lis
 The `agent.js` file defines the personal agent with a system prompt shaped by `soul.md`. `runAgent()` gives it the bot token's runbook tools, or the Slack MCP Server's runbook tools in a DM with a person who has connected it, or read-only MCP tools for a brief. The app tools run in an in-process MCP server (`agent-tools`), and the Slack MCP Server is added as `slack-mcp`. Every run passes an explicit `allowedTools` list with `permissionMode: 'dontAsk'`, disables Claude Code's built-in tools (`tools: []`), and ignores local settings and MCP configs (`settingSources: []`, `strictMcpConfig: true`), so the agent can only call the tools selected for that run. It also defines the `AgentDeps` type passed to the tools at runtime, providing access to the Slack client and conversation context.
 
 The `access.js` file decides who the owner is and only attaches a user token to private replies. Tool selection lives in `agent/agent.js`.
+
+The `reply-deps.js` file builds `AgentDeps` for replies, selecting tools and tokens based on the requester and audience.
 
 The `soul.js` file reads and writes `soul.md`.
 

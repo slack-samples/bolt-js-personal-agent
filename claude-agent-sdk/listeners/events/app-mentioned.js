@@ -1,7 +1,7 @@
 import { runAgent } from '../../agent/index.js';
+import { buildReplyDeps } from '../../agent/reply-deps.js';
 import { sessionStore } from '../../thread-context/index.js';
 import { buildFeedbackBlocks } from '../views/feedback-builder.js';
-import { buildReplyDeps } from './reply-deps.js';
 
 /**
  * Handle app_mention events and run the agent.

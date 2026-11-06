@@ -1,7 +1,7 @@
 import { AgentDeps, runAgent } from '../../agent/index.js';
+import { buildReplyDeps } from '../../agent/reply-deps.js';
 import { conversationStore } from '../../thread-context/index.js';
 import { buildFeedbackBlocks } from '../views/feedback-builder.js';
-import { buildReplyDeps } from './reply-deps.js';
 
 const LEARNED_SUBTYPES = new Set([undefined, 'file_share', 'thread_broadcast']);
 
