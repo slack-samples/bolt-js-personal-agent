@@ -355,7 +355,6 @@ If you're a **guest** (anyone else), you'll see:
 - _Ask what they're working on_
 - _Triage a Request_
 
-
 **Channel @mentions** — Invite the agent to your team channel by typing `/invite @agent-name` in the message box, then @mention it followed by your request. The agent responds in a thread so the channel stays clean.
 
 **Channel messages** — Talk through a problem in your team channel. When you post the fix, the agent adds it to a runbook and sends you an ephemeral note with the link. Ask about the same problem later and it answers from that runbook.
