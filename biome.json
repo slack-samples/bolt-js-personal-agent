@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "files": {
-    "includes": ["**", "!openai-agents-sdk", "!claude-agent-sdk"]
+    "includes": ["**", "!.*/skills", "!.slack", "!openai-agents-sdk", "!claude-agent-sdk", "!skills-lock.json"]
   },
   "formatter": {
     "enabled": true,
