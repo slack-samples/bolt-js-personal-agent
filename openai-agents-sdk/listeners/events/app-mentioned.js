@@ -17,7 +17,7 @@ export async function handleAppMentioned({ client, context, event, logger, say, 
     const threadTs = event.thread_ts || event.ts;
     const userId = /** @type {string} */ (context.userId);
 
-    const cleanedText = text.replace(/<@[A-Z0-9]+>/g, '').trim();
+    const cleanedText = text.replaceAll(`<@${context.botUserId}>`, '').trim();
 
     if (!cleanedText) {
       await say({
@@ -28,13 +28,13 @@ export async function handleAppMentioned({ client, context, event, logger, say, 
     }
 
     await setStatus({
-      status: 'Thinking\u2026',
+      status: 'Thinking…',
       loading_messages: [
-        'Teaching the hamsters to type faster\u2026',
-        'Untangling the internet cables\u2026',
-        'Consulting the office goldfish\u2026',
-        'Polishing up the response just for you\u2026',
-        'Convincing the AI to stop overthinking\u2026',
+        'Teaching the hamsters to type faster…',
+        'Untangling the internet cables…',
+        'Consulting the office goldfish…',
+        'Polishing up the response just for you…',
+        'Convincing the AI to stop overthinking…',
       ],
     });
 

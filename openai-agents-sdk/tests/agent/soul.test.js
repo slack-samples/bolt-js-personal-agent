@@ -40,6 +40,18 @@ describe('soul', () => {
     assert.ok(!isTemplate(result));
   });
 
+  it('treats an unedited copy of the template as the template', (t) => {
+    const soulPath = path.join(tmpDir(t), 'SOUL.md');
+    saveSoul(`\n${fs.readFileSync(TEMPLATE_PATH, 'utf-8')}\n\n`, soulPath);
+    assert.ok(isTemplate(loadSoul(soulPath)));
+  });
+
+  it('does not treat an edited copy of the template as the template', (t) => {
+    const soulPath = path.join(tmpDir(t), 'SOUL.md');
+    saveSoul(fs.readFileSync(TEMPLATE_PATH, 'utf-8').replace('## Goals', '## Goals\n\nShip it'), soulPath);
+    assert.ok(!isTemplate(loadSoul(soulPath)));
+  });
+
   it('falls back inline when the template is unreadable', (t) => {
     const soulPath = path.join(tmpDir(t), 'SOUL.md');
     const original = fs.readFileSync;

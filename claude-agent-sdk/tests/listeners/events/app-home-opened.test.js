@@ -1,6 +1,8 @@
 import assert from 'node:assert';
+import { readFileSync } from 'node:fs';
 import { beforeEach, describe, it, mock } from 'node:test';
 
+import { soulFiles } from '../../../agent/soul.js';
 import { handleAppHomeOpened } from '../../../listeners/events/app-home-opened.js';
 import { setEnv, useSoul } from '../../helpers.js';
 
@@ -79,9 +81,16 @@ describe('handleAppHomeOpened', () => {
 
   it('shows the soul status to the owner', async (t) => {
     setEnv(t, { OWNER_USER_ID: 'U123' });
-    useSoul(t, '<!-- soul-template -->\nTemplate content');
+    useSoul(t, readFileSync(soulFiles.templatePath, 'utf-8'));
     await open({ tab: 'home', channel: 'D123' });
     assert.ok(publishedView().includes("isn't set up"));
+  });
+
+  it('shows a filled-in copy of the template as set up', async (t) => {
+    setEnv(t, { OWNER_USER_ID: 'U123' });
+    useSoul(t, `${readFileSync(soulFiles.templatePath, 'utf-8')}\nName: Ada`);
+    await open({ tab: 'home', channel: 'D123' });
+    assert.ok(publishedView().includes('Your soul is set up'));
   });
 
   it('hides the soul status from guests', async (t) => {

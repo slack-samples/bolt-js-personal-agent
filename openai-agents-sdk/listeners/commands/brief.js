@@ -29,7 +29,7 @@ export async function handleBrief({ ack, command, client, context, respond, logg
       return;
     }
 
-    await respond('Putting your brief together\u2026');
+    await respond('Putting your brief together…');
 
     const deps = new AgentDeps(client, userId, command.channel_id, '', '', {
       userToken: context.userToken,

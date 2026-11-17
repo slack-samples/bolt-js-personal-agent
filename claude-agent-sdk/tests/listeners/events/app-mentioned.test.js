@@ -43,7 +43,7 @@ describe('handleAppMentioned', () => {
     const streamer = makeStreamer();
 
     await mention(
-      { userId: 'U123', userToken: undefined },
+      { botUserId: 'B123', userId: 'U123', userToken: undefined },
       { text: '<@B123> is there a runbook for deploys?', ts: '1700000000.000100' },
       streamer,
     );
@@ -59,7 +59,10 @@ describe('handleAppMentioned', () => {
     setEnv(t, { OWNER_USER_ID: 'U123' });
     const query = t.mock.method(sdk, 'query', answer("Here's the runbook."));
 
-    await mention({ userId: 'U123', userToken: 'xoxp-123' }, { text: '<@B123> summarize', ts: '1700000000.000100' });
+    await mention(
+      { botUserId: 'B123', userId: 'U123', userToken: 'xoxp-123' },
+      { text: '<@B123> summarize', ts: '1700000000.000100' },
+    );
 
     const { options } = query.mock.calls[0].arguments[0];
     assert.ok(options.systemPrompt.includes('The requester is your owner.'));
@@ -72,7 +75,10 @@ describe('handleAppMentioned', () => {
     sessionStore.setSession('C123', 't1', 'U0WNER', 'owner-session');
     const query = t.mock.method(sdk, 'query', answer("Here's the runbook.", [], 'guest-session'));
 
-    await mention({ userId: 'U123', userToken: undefined }, { text: '<@B123> any update?', thread_ts: 't1', ts: 't2' });
+    await mention(
+      { botUserId: 'B123', userId: 'U123', userToken: undefined },
+      { text: '<@B123> any update?', thread_ts: 't1', ts: 't2' },
+    );
 
     assert.strictEqual(query.mock.calls[0].arguments[0].options.resume, undefined);
     assert.strictEqual(sessionStore.getSession('C123', 't1', 'U123'), 'guest-session');
@@ -83,9 +89,24 @@ describe('handleAppMentioned', () => {
     const query = t.mock.method(sdk, 'query', answer('Hi.'));
     const streamer = makeStreamer();
 
-    await mention({ userId: 'U123' }, { bot_id: 'B456', text: '<@B123> hello', ts: '1700000000.000100' }, streamer);
+    await mention(
+      { botUserId: 'B123', userId: 'U123' },
+      { bot_id: 'B456', text: '<@B123> hello', ts: '1700000000.000100' },
+      streamer,
+    );
 
     assert.strictEqual(query.mock.callCount(), 0);
     assert.strictEqual(streamer.append.mock.callCount(), 0);
+  });
+
+  it("strips only the agent's own mention", async (t) => {
+    const query = t.mock.method(sdk, 'query', answer('Asking now.'));
+
+    await mention(
+      { botUserId: 'B123', userId: 'U123' },
+      { text: '<@B123> ask <@U456> about X', ts: '1700000000.000100' },
+    );
+
+    assert.strictEqual(query.mock.calls[0].arguments[0].prompt, 'ask <@U456> about X');
   });
 });

@@ -95,6 +95,7 @@ describe('handleMessage', () => {
     assert.ok(learnInput.includes('rotate the signing secret'));
     assert.strictEqual(mcp.servers.length, 0);
     assert.ok(!toolNames(model).includes('update_soul'));
+    assert.ok(!toolNames(model).includes('add_emoji_reaction'));
     assert.ok(instructions(model).includes('<@U123>'));
     assert.ok(instructions(model).includes('The requester is not your owner.'));
     assert.ok(instructions(model).includes('Your reply is not private'));
@@ -105,6 +106,20 @@ describe('handleMessage', () => {
       thread_ts: '1700000000.000100',
       user: 'U123',
     });
+  });
+
+  it('never resumes or stores history while learning', async (t) => {
+    conversationStore.setHistory('C123', 't1', 'U123', [{ role: 'user', content: 'earlier question' }]);
+    const model = scripted(t, () => say('Nothing to keep.'));
+
+    await handle({ channel_type: 'channel', text: 'Fixed it', ts: 't1' });
+
+    assert.strictEqual(model.inputs.length, 1);
+    assert.ok(JSON.stringify(model.inputs[0]).includes('Learn from'));
+    assert.ok(!JSON.stringify(model.inputs[0]).includes('earlier question'));
+    assert.deepStrictEqual(conversationStore.getHistory('C123', 't1', 'U123'), [
+      { role: 'user', content: 'earlier question' },
+    ]);
   });
 
   it('stays quiet when no runbook changed', async (t) => {
@@ -146,6 +161,24 @@ describe('handleMessage', () => {
     });
 
     assert.ok(logger.error.mock.calls[0].arguments[0].includes('test exception'));
+  });
+
+  it('learns with the bot token without a user token', async (t) => {
+    context.userToken = undefined;
+    scripted(t, (callNumber) =>
+      callNumber === 1
+        ? call('create_runbook', { topic: 'Deploys', markdown: '# Steps\n1. Rotate the signing secret' })
+        : say('Added the steps to [Runbook: Deploys](https://example.com/F123).'),
+    );
+
+    await handle({
+      channel_type: 'channel',
+      text: 'Fixed it: rotate the signing secret',
+      ts: '1700000000.000100',
+    });
+
+    assert.strictEqual(mcp.servers.length, 0);
+    assert.strictEqual(client.chat.postEphemeral.mock.callCount(), 1);
   });
 
   it('does not learn from edits or bots', async (t) => {
@@ -194,7 +227,7 @@ describe('handleMessage', () => {
 
     await handle({ channel_type: 'channel', text: 'Any update?', thread_ts: 't1', ts: 't2' });
 
-    assert.strictEqual(model.inputs.length, 2);
+    assert.strictEqual(model.inputs.length, 1);
     assert.deepStrictEqual(model.inputs[0], [{ type: 'message', role: 'user', content: 'Any update?' }]);
     assert.ok(!JSON.stringify(model.inputs[0]).includes('owner secret'));
     assert.strictEqual(mcp.servers.length, 0);
@@ -219,7 +252,7 @@ describe('handleMessage', () => {
 
     await handle({ channel_type: 'channel', text: 'Any update?', thread_ts: 't1', ts: 't2' });
 
-    assert.strictEqual(model.inputs.length, 2);
+    assert.strictEqual(model.inputs.length, 1);
     assert.strictEqual(mcp.servers.length, 0);
     assert.ok(!toolNames(model).includes('update_soul'));
     assert.ok(instructions(model).includes('The requester is your owner.'));
@@ -249,9 +282,32 @@ describe('handleMessage', () => {
 
     await handle({ channel_type: 'channel', text: '<@UB0T> any update?', thread_ts: 't1', ts: 't2' });
 
-    assert.strictEqual(model.inputs.length, 1);
-    assert.ok(JSON.stringify(model.inputs[0]).includes('Learn from'));
+    assert.strictEqual(model.inputs.length, 0);
     assert.strictEqual(streamer.append.mock.callCount(), 0);
+  });
+
+  it('does not learn from a message that mentions the agent', async (t) => {
+    const model = scripted(t, () => say('Nothing to keep.'));
+
+    await handle({ channel_type: 'channel', text: '<@UB0T> how do I rotate the secret?', ts: '1700000000.000100' });
+
+    assert.strictEqual(model.inputs.length, 0);
+    assert.strictEqual(client.chat.postEphemeral.mock.callCount(), 0);
+  });
+
+  it('logs a failed bot user lookup', async (t) => {
+    context = { botToken: 'xoxb-failing', userId: 'U123' };
+    client.auth = {
+      test: mock.fn(async () => {
+        throw new Error('auth failed');
+      }),
+    };
+    const model = scripted(t, () => say('Nothing to keep.'));
+
+    await handle({ channel_type: 'channel', text: 'Fixed it', ts: '1700000000.000100' });
+
+    assert.strictEqual(model.inputs.length, 0);
+    assert.ok(logger.error.mock.calls[0].arguments[0].includes('auth failed'));
   });
 
   it('looks up the bot user once when the context has none', async (t) => {
@@ -264,7 +320,7 @@ describe('handleMessage', () => {
     await handle({ channel_type: 'channel', text: '<@UB0T> still there?', thread_ts: 't1', ts: 't3' });
 
     assert.strictEqual(client.auth.test.mock.callCount(), 1);
-    assert.strictEqual(model.inputs.length, 2);
+    assert.strictEqual(model.inputs.length, 0);
     assert.strictEqual(streamer.append.mock.callCount(), 0);
   });
 
@@ -277,49 +333,15 @@ describe('handleMessage', () => {
     assert.strictEqual(streamer.append.mock.callCount(), 1);
   });
 
-  it('replies before learning in an engaged thread', async (t) => {
+  it('does not learn from a reply in an engaged thread', async (t) => {
     conversationStore.setHistory('C123', 't1', 'U123', []);
     const model = scripted(t, () => say('No update yet.'));
 
     await handle({ channel_type: 'channel', text: 'Any update?', thread_ts: 't1', ts: 't2' });
 
-    assert.strictEqual(model.inputs.length, 2);
+    assert.strictEqual(model.inputs.length, 1);
     assert.ok(!JSON.stringify(model.inputs[0]).includes('Learn from'));
-    assert.ok(JSON.stringify(model.inputs[1]).includes('Learn from'));
     assert.strictEqual(streamer.append.mock.callCount(), 1);
-  });
-
-  it('still learns when the reply fails', async (t) => {
-    conversationStore.setHistory('C123', 't1', 'U123', []);
-    const model = scripted(t, (callNumber) => {
-      if (callNumber === 1) throw new Error('reply failed');
-      return say('Nothing to keep.');
-    });
-    const failingSay = mock.fn(async () => {
-      throw new Error('say failed');
-    });
-
-    await assert.rejects(
-      handle({ channel_type: 'channel', text: 'Any update?', thread_ts: 't1', ts: 't2' }, { say: failingSay }),
-      /say failed/,
-    );
-
-    assert.strictEqual(model.inputs.length, 2);
-    assert.ok(JSON.stringify(model.inputs[1]).includes('Learn from'));
-    assert.ok(logger.error.mock.calls[0].arguments[0].includes('reply failed'));
-  });
-
-  it('still replies when learning fails', async (t) => {
-    conversationStore.setHistory('C123', 't1', 'U123', []);
-    scripted(t, (callNumber) => {
-      if (callNumber === 2) throw new Error('learning failed');
-      return say('No update yet.');
-    });
-
-    await handle({ channel_type: 'channel', text: 'Any update?', thread_ts: 't1', ts: 't2' });
-
-    assert.strictEqual(streamer.append.mock.callCount(), 1);
-    assert.ok(logger.error.mock.calls[0].arguments[0].includes('learning failed'));
   });
 
   it('replies to a DM that shares a file', async (t) => {
@@ -343,7 +365,7 @@ describe('handleMessage', () => {
       ts: 't2',
     });
 
-    assert.strictEqual(model.inputs.length, 2);
+    assert.strictEqual(model.inputs.length, 1);
     assert.ok(JSON.stringify(model.inputs[0]).includes('Any update?'));
     assert.ok(!JSON.stringify(model.inputs[0]).includes('Learn from'));
     assert.strictEqual(streamer.append.mock.callCount(), 1);

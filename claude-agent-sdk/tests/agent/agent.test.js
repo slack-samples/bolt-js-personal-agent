@@ -1,4 +1,5 @@
 import assert from 'node:assert';
+import { readFileSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -7,6 +8,7 @@ import {
   BRIEF_READ_TOOLS,
   buildInstructions,
   CLAUDE_CONFIG_DIR,
+  ERROR_REPLY,
   localTools,
   MAX_TURNS_REPLY,
   mcpToolNames,
@@ -16,9 +18,10 @@ import {
   SYSTEM_PROMPT,
   sdk,
 } from '../../agent/agent.js';
+import { soulFiles } from '../../agent/soul.js';
 import { allowedOn, answer, setEnv, useSoul } from '../helpers.js';
 
-const TEMPLATE_SOUL = '<!-- soul-template -->\n# Soul\n## Goals\n*placeholder*';
+const TEMPLATE_SOUL = readFileSync(soulFiles.templatePath, 'utf-8');
 const ONBOARDING_LINE = 'start the onboarding interview';
 const CONNECT_LINE = 'ask them to connect the Slack MCP Server';
 
@@ -128,6 +131,11 @@ describe('agent', () => {
       ]);
       assert.deepStrictEqual(mcpToolNames(deps), RUNBOOK_TOOLS);
     });
+
+    it('gives a learning run no emoji reaction tool', () => {
+      const deps = makeDeps({ channelId: 'C123', isPrivateReply: false, isLearning: true });
+      assert.deepStrictEqual(toolNames(deps), ['create_runbook', 'list_runbooks', 'read_runbook']);
+    });
   });
 
   describe('instructions', () => {
@@ -171,11 +179,9 @@ describe('agent', () => {
       assert.ok(!buildInstructions(makeDeps({ userId: 'U0GUEST', isPrivateReply: true })).includes(ONBOARDING_LINE));
     });
 
-    it('strip the template marker', (t) => {
-      useSoul(t, TEMPLATE_SOUL);
-      const instructions = buildInstructions(makeDeps({ isOwner: true, isPrivateReply: true }));
-      assert.ok(!instructions.includes('<!-- soul-template -->'));
-      assert.ok(instructions.includes('*placeholder*'));
+    it('do not start onboarding once the template is filled in', (t) => {
+      useSoul(t, `${TEMPLATE_SOUL}\nName: Ada`);
+      assert.ok(!buildInstructions(makeDeps({ isOwner: true, isPrivateReply: true })).includes(ONBOARDING_LINE));
     });
 
     it('ask the agent to identify itself to a guest', () => {
@@ -365,6 +371,18 @@ describe('agent', () => {
         messages: [resultMessage({ subtype: 'error_max_turns', result: undefined })],
       });
       assert.strictEqual(result.finalOutput, MAX_TURNS_REPLY);
+    });
+
+    it('falls back to the error reply on an error result', async (t) => {
+      const { result } = await runWith(t, makeDeps(), {
+        messages: [resultMessage({ subtype: 'error_during_execution', result: undefined })],
+      });
+      assert.strictEqual(result.finalOutput, ERROR_REPLY);
+    });
+
+    it('falls back to the error reply on an empty result', async (t) => {
+      const { result } = await runWith(t, makeDeps(), { messages: [resultMessage({ result: ' ' })] });
+      assert.strictEqual(result.finalOutput, ERROR_REPLY);
     });
 
     it('throws without a result', async (t) => {

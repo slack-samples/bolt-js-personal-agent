@@ -1,6 +1,8 @@
 import assert from 'node:assert';
+import fs from 'node:fs';
 import { beforeEach, describe, it, mock } from 'node:test';
 
+import { TEMPLATE_PATH } from '../../../agent/soul.js';
 import { handleAppHomeOpened } from '../../../listeners/events/app-home-opened.js';
 import { withOwner, withSoul } from '../../helpers.js';
 
@@ -70,11 +72,20 @@ describe('handleAppHomeOpened', () => {
 
   it('shows the soul status to the owner', async (t) => {
     withOwner(t, 'U123');
-    withSoul(t, '<!-- soul-template -->\nTemplate content');
+    withSoul(t, fs.readFileSync(TEMPLATE_PATH, 'utf-8'));
     const event = { tab: 'home', channel: 'D123' };
     await handleAppHomeOpened({ client: fakeClient, event, context: fakeContext, logger: fakeLogger });
     const { view } = fakeClient.views.publish.mock.calls[0].arguments[0];
     assert.ok(JSON.stringify(view).includes("isn't set up"));
+  });
+
+  it('shows a filled-in copy of the template as set up', async (t) => {
+    withOwner(t, 'U123');
+    withSoul(t, `${fs.readFileSync(TEMPLATE_PATH, 'utf-8')}\nName: Ada`);
+    const event = { tab: 'home', channel: 'D123' };
+    await handleAppHomeOpened({ client: fakeClient, event, context: fakeContext, logger: fakeLogger });
+    const { view } = fakeClient.views.publish.mock.calls[0].arguments[0];
+    assert.ok(JSON.stringify(view).includes('Your soul is set up'));
   });
 
   it('hides the soul status from guests', async (t) => {

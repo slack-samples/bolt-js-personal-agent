@@ -43,6 +43,18 @@ describe('soul', () => {
     assert.ok(!isTemplate(result));
   });
 
+  it('treats an unedited copy of the template as the template', () => {
+    const path = join(tempDir(), 'SOUL.md');
+    saveSoul(`\n${readFileSync(soulFiles.templatePath, 'utf-8')}\n\n`, path);
+    assert.ok(isTemplate(loadSoul(path)));
+  });
+
+  it('does not treat an edited copy of the template as the template', () => {
+    const path = join(tempDir(), 'SOUL.md');
+    saveSoul(readFileSync(soulFiles.templatePath, 'utf-8').replace('## Goals', '## Goals\n\nShip it'), path);
+    assert.ok(!isTemplate(loadSoul(path)));
+  });
+
   it('loadSoul falls back inline when the template is unreadable', (t) => {
     const path = useSoul(t);
     soulFiles.templatePath = join(tempDir(), 'missing.md');

@@ -16,7 +16,8 @@ const EMOJI_DESCRIPTION =
   '- Network/connectivity: satellite, signal_strength\n' +
   '- Agreement/acknowledgment: thumbsup, ok_hand, saluting_face, +1';
 
-/** Emoji reaction tool for the starter agent. */
+export const SKIP_RATE = 0.15;
+
 export const addEmojiReaction = tool({
   name: 'add_emoji_reaction',
   description: EMOJI_DESCRIPTION,
@@ -26,8 +27,7 @@ export const addEmojiReaction = tool({
   execute: async ({ emoji_name }, context) => {
     const deps = /** @type {import('../deps.js').AgentDeps} */ (context?.context);
 
-    // Skip ~15% of reactions to feel more natural
-    if (Math.random() < 0.15) {
+    if (Math.random() < SKIP_RATE) {
       return `Skipped :${emoji_name}: reaction (randomly omitted to avoid over-reacting)`;
     }
 

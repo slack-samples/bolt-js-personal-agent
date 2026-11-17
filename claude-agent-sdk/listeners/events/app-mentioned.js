@@ -17,7 +17,7 @@ export async function handleAppMentioned({ client, context, event, logger, say, 
     const threadTs = event.thread_ts || event.ts;
     const userId = /** @type {string} */ (context.userId);
 
-    const cleanedText = text.replace(/<@[A-Z0-9]+>/g, '').trim();
+    const cleanedText = text.replaceAll(`<@${context.botUserId}>`, '').trim();
 
     if (!cleanedText) {
       await say({

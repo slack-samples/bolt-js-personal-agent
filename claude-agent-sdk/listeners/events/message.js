@@ -36,48 +36,49 @@ async function resolveBotUserId(client, context) {
 }
 
 /**
- * Handle messages sent to the agent via DM or in threads the bot is part of.
- * The agent also learns from channel messages, adding anything they settle to runbooks.
+ * Reply to direct messages and to replies in threads the agent is part of, and learn from
+ * other channel messages, adding anything they settle to runbooks. Channel messages that
+ * mention the agent are left to app_mention.
  * @param {import('@slack/bolt').AllMiddlewareArgs & import('@slack/bolt').SlackEventMiddlewareArgs<'message'>} args
  * @returns {Promise<void>}
  */
 export async function handleMessage(args) {
-  const { event } = args;
+  const { client, context, event, logger } = args;
   if ('bot_id' in event && event.bot_id) return;
+  if (!isLearnedMessageEvent(event)) return;
 
-  const isDm = event.channel_type === 'im';
-
-  try {
-    await replyToMessage(args, isDm);
-  } finally {
-    if (!isDm && isLearnedMessageEvent(event)) {
-      await learnFromMessage(args, event);
-    }
+  if (event.channel_type === 'im') {
+    await replyToMessage(args, event, true);
+    return;
   }
+
+  let botUserId;
+  try {
+    botUserId = await resolveBotUserId(client, context);
+  } catch (e) {
+    logger.error(`Failed to handle message: ${e}`);
+    return;
+  }
+  if (botUserId && (event.text ?? '').includes(`<@${botUserId}>`)) return;
+
+  if (event.thread_ts && sessionStore.hasThread(event.channel, event.thread_ts)) {
+    await replyToMessage(args, event, false);
+    return;
+  }
+
+  await learnFromMessage(args, event);
 }
 
 /**
  * @param {import('@slack/bolt').AllMiddlewareArgs & import('@slack/bolt').SlackEventMiddlewareArgs<'message'>} args
+ * @param {import('@slack/types').GenericMessageEvent | import('@slack/types').FileShareMessageEvent | import('@slack/types').ThreadBroadcastMessageEvent} event
  * @param {boolean} isDm
  * @returns {Promise<void>}
  */
-async function replyToMessage({ client, context, event, logger, say, sayStream, setStatus }, isDm) {
-  if (!isLearnedMessageEvent(event)) return;
-
-  const isThreadReply = !!event.thread_ts;
-
-  if (!isDm && !(isThreadReply && sessionStore.hasThread(event.channel, /** @type {string} */ (event.thread_ts)))) {
-    return;
-  }
-
+async function replyToMessage({ client, context, logger, say, sayStream, setStatus }, event, isDm) {
   try {
     const channelId = event.channel;
     const text = event.text ?? '';
-
-    if (!isDm) {
-      const botUserId = await resolveBotUserId(client, context);
-      if (botUserId && text.includes(`<@${botUserId}>`)) return;
-    }
 
     const threadTs = event.thread_ts || event.ts;
     const userId = /** @type {string} */ (context.userId);
@@ -131,6 +132,7 @@ async function learnFromMessage({ client, context, logger }, event) {
       userToken: undefined,
       isOwner: false,
       isPrivateReply: false,
+      isLearning: true,
     };
     const result = await runAgent(`Learn from this channel message:\n\n${event.text ?? ''}`, deps, {
       persistSession: false,

@@ -10,20 +10,21 @@ export async function handleFeedbackButton({ ack, body, client, context, logger 
     const userId = /** @type {string} */ (context.userId);
     const channelId = /** @type {string} */ (body.channel?.id);
     const messageTs = /** @type {string} */ (body.message?.ts);
+    const threadTs = /** @type {string} */ (body.message?.thread_ts || messageTs);
     const feedbackValue = body.actions[0].value;
 
     if (feedbackValue === 'good-feedback') {
       await client.chat.postEphemeral({
         channel: channelId,
         user: userId,
-        thread_ts: messageTs,
+        thread_ts: threadTs,
         text: 'Glad that was helpful! :tada:',
       });
     } else {
       await client.chat.postEphemeral({
         channel: channelId,
         user: userId,
-        thread_ts: messageTs,
+        thread_ts: threadTs,
         text: "Sorry that wasn't helpful. :slightly_frowning_face: Try rephrasing your question and I'll give it another shot.",
       });
     }

@@ -5,9 +5,11 @@ export const README_MCP_URL =
  * @returns {string | null}
  */
 export function installUrl() {
-  if (!process.env.SLACK_CLIENT_ID) return null;
   const redirectUri = process.env.SLACK_REDIRECT_URI;
-  return redirectUri ? new URL('/slack/install', redirectUri).href : '/slack/install';
+  if (!process.env.SLACK_CLIENT_ID || !redirectUri) {
+    return null;
+  }
+  return new URL('/slack/install', redirectUri).href;
 }
 
 /**

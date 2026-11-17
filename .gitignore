@@ -1,4 +1,17 @@
-/node_modules
+# Build
+.bolt-js-build/
+
+# Claude Code
+.claude/*.local.json
+
+# Git
+.worktrees/
+
+# macOS
 .DS_Store
-.env*
-!.env.sample
+
+# Slack CLI
+*/.slack/apps.json
+*/.slack/apps.dev.json
+*/.slack/cache/
+*/.slack/config.json

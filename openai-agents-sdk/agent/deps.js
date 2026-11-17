@@ -4,6 +4,7 @@
  * @property {boolean} [isOwner]
  * @property {boolean} [isPrivateReply]
  * @property {boolean} [isBrief]
+ * @property {boolean} [isLearning]
  */
 
 /**
@@ -37,5 +38,7 @@ export class AgentDeps {
     this.isPrivateReply = options.isPrivateReply ?? false;
     /** @type {boolean} */
     this.isBrief = options.isBrief ?? false;
+    /** @type {boolean} */
+    this.isLearning = options.isLearning ?? false;
   }
 }

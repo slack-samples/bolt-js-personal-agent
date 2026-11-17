@@ -49,6 +49,7 @@ describe('handleAppMentioned', () => {
       /** @type {any} */ ({
         client: {},
         context: {
+          botUserId: 'B123',
           userId: 'U123',
         },
         event: {
@@ -75,7 +76,10 @@ describe('handleAppMentioned', () => {
     const mcp = fakeSlackMcp(t);
     const model = scripted(t, () => say("Here's the runbook."));
 
-    await mention({ userId: 'U123', userToken: 'xoxp-123' }, { text: '<@B123> summarize', ts: '1700000000.000100' });
+    await mention(
+      { botUserId: 'B123', userId: 'U123', userToken: 'xoxp-123' },
+      { text: '<@B123> summarize', ts: '1700000000.000100' },
+    );
 
     assert.strictEqual(mcp.servers.length, 0);
     assert.ok(!toolNames(model).includes('update_soul'));
@@ -88,7 +92,7 @@ describe('handleAppMentioned', () => {
     conversationStore.setHistory('C123', 't1', 'U0WNER', [{ role: 'user', content: 'owner secret' }]);
     const model = scripted(t, () => say("Here's the runbook."));
 
-    await mention({ userId: 'U123' }, { text: '<@B123> any update?', thread_ts: 't1', ts: 't2' });
+    await mention({ botUserId: 'B123', userId: 'U123' }, { text: '<@B123> any update?', thread_ts: 't1', ts: 't2' });
 
     assert.deepStrictEqual(model.inputs[0], [{ type: 'message', role: 'user', content: 'any update?' }]);
     assert.ok(conversationStore.getHistory('C123', 't1', 'U123'));
@@ -107,5 +111,16 @@ describe('handleAppMentioned', () => {
 
     assert.strictEqual(model.inputs.length, 0);
     assert.strictEqual(streamer.append.mock.callCount(), 0);
+  });
+
+  it("strips only the agent's own mention", async (t) => {
+    const model = scripted(t, () => say('Asking now.'));
+
+    await mention(
+      { botUserId: 'B123', userId: 'U123' },
+      { text: '<@B123> ask <@U456> about X', ts: '1700000000.000100' },
+    );
+
+    assert.deepStrictEqual(model.inputs[0], [{ type: 'message', role: 'user', content: 'ask <@U456> about X' }]);
   });
 });

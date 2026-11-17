@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import { beforeEach, describe, it, mock } from 'node:test';
 
 import { AgentDeps } from '../../agent/deps.js';
-import { createRunbook, listRunbooks, readRunbook } from '../../agent/tools/index.js';
+import { addEmojiReaction, createRunbook, listRunbooks, readRunbook } from '../../agent/tools/index.js';
 import { invoke, slackError } from '../helpers.js';
 
 /**
@@ -216,5 +216,22 @@ describe('runbook tools', () => {
 
     assert.ok(result.includes('F_DM'));
     assert.ok(!result.includes('F_OTHER_DM'));
+  });
+
+  it('add_emoji_reaction reacts to the current message', async (t) => {
+    t.mock.method(Math, 'random', () => 0.5);
+    client.reactions = { add: mock.fn(async () => ({ ok: true })) };
+    deps.threadTs = '1700000000.000100';
+    deps.messageTs = '1700000000.000200';
+
+    const result = await invoke(addEmojiReaction, deps, { emoji_name: 'tada' });
+
+    assert.strictEqual(client.reactions.add.mock.callCount(), 1);
+    assert.deepStrictEqual(client.reactions.add.mock.calls[0].arguments[0], {
+      channel: 'C123',
+      timestamp: '1700000000.000200',
+      name: 'tada',
+    });
+    assert.strictEqual(result, 'Reacted with :tada:');
   });
 });

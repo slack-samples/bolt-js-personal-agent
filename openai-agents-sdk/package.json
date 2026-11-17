@@ -13,7 +13,9 @@
   "dependencies": {
     "@openai/agents": "^0.21.0",
     "@slack/bolt": "^5.1.0",
-    "dotenv": "~18.0.10"
+    "@slack/oauth": "^4.0.0",
+    "dotenv": "~18.0.10",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.6",

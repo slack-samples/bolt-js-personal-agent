@@ -11,7 +11,7 @@ The personal agent interacts with users through five entry points:
 - **App Home** — Displays a welcome message with instructions on how to interact, plus Slack MCP connection status.
 - **Direct Messages** — Users message the agent directly to ask about your work or find a runbook. It responds in-thread, maintaining context across follow-ups. When you DM it, it can also help you set up your `SOUL.md` file.
 - **Channel @mentions** — Mention the agent in a team channel with a request. It answers from a runbook when one covers it, or offers to start one.
-- **Channel messages** — The agent follows along in channels it's a member of. When a message settles something worth keeping, the agent adds it to runbooks on its own.
+- **Channel messages** — The agent follows along in channels it's a member of. When a message settles something worth keeping, the agent adds it to runbooks on its own. Messages it answers (mentions and replies in threads it's part of) aren't learned from.
 - **Assistant Panel** — Users click _Add Agent_ in Slack, select the agent, and pick from suggested prompts or type a message.
 
 The agent works with runbooks through three app tools that call the Web API with the bot token: `list_runbooks`, `read_runbook`, and `create_runbook`. When a person has connected the [Slack MCP Server](https://github.com/slackapi/slack-mcp-server), the agent uses its runbook tools as that person instead, only in their DMs with the agent (and in `/brief`, which is read-only), and those tools can also edit existing runbooks section by section. Channel replies and learning from channel messages always use the bot token. One more app tool (emoji reactions) shows a request was picked up. Add your own tools to customize it for your use case.
@@ -22,11 +22,11 @@ Runbooks are Slack canvases titled `Runbook: <topic>`. Each one holds how the te
 
 - **Reading** — When a request comes in, the agent finds the runbook that covers it and answers from it.
 - **Writing on request** — Ask the agent to write a runbook and it creates one. In your DMs with the agent, with the Slack MCP Server connected, it can also fix the runbook that covers the topic.
-- **Learning from messages** — The same agent reads each channel message. If the message fixed a problem, named an owner, made a decision, or corrected a runbook, the agent creates a runbook for it with the bot token. Learning never uses the Slack MCP Server, so it can't edit an existing runbook. Most messages settle nothing worth keeping, and the agent leaves those alone.
+- **Learning from messages** — The same agent reads each channel message that doesn't mention it and isn't a reply in a thread it's part of. If the message fixed a problem, named an owner, made a decision, or corrected a runbook, the agent creates a runbook for it with the bot token. Learning never uses the Slack MCP Server, so it can't edit an existing runbook. Most messages settle nothing worth keeping, and the agent leaves those alone.
 
 This is the loop the template is built to show: the runbooks the agent writes from messages are the runbooks it answers from next time.
 
-When the agent changes a runbook, it tells the message's author with an ephemeral message only they can see. Nothing is posted to the channel. New runbooks are added as a tab in the channel they were learned in, so the whole team can read and edit them. The agent only gets the bot-token runbook tools and the emoji reaction tool, so it can't send messages or read threads.
+When the agent changes a runbook, it tells the message's author with an ephemeral message only they can see. Nothing is posted to the channel. New runbooks are added as a tab in the channel they were learned in, so the whole team can read and edit them. The agent only gets the bot-token runbook tools, so it can't send messages, read threads, or react to the message.
 
 ### OWNER_USER_ID
 
@@ -36,7 +36,7 @@ The owner gets access to tools that others don't: `update_soul` (editing `SOUL.m
 
 ### SOUL.md
 
-The `SOUL.md` file shapes the agent's voice and how it answers. Copy `SOUL.template.md` to `SOUL.md` (the file is gitignored) and fill in:
+The `SOUL.md` file shapes the agent's voice and how it answers. Run `cp SOUL.template.md SOUL.md` (the file is gitignored), then fill in:
 
 - **Identity** — the agent's name and voice/operating style
 - **About me** — your name, role, team, timezone, what you work on
@@ -57,7 +57,7 @@ The agent never responds with data that anyone who will see the reply couldn't a
 | Someone else's DM with the agent                        | That person, connected via `/slack/install` | **their own** user token          | MCP runbook tools + emoji                                                                                                                                |
 | Someone else's DM with the agent                        | That person, not connected                  | none                              | bot-token runbook tools + emoji                                                                                                                          |
 | Any channel or channel thread (mention or thread reply) | Anyone, including the owner                 | none                              | bot-token runbook tools + emoji                                                                                                                          |
-| Passive learning (no requester)                         | n/a                                         | none (bot token only)             | bot-token runbook tools + emoji                                                                                                                          |
+| Passive learning (no requester)                         | n/a                                         | none (bot token only)             | bot-token runbook tools (no emoji)                                                                                                                       |
 
 A user token is only attached when the reply is visible to that person alone, so Slack itself enforces what each person can see. The bot-token runbook tools only see runbooks shared in the current channel or DM, which everyone reading the reply can already see. In a DM without the Slack MCP Server, the agent asks the person to connect it to search runbooks.
 
@@ -75,11 +75,11 @@ The agent answers with what it knows and never makes decisions or commitments fo
 
 ### `/brief`
 
-The `/brief` slash command is owner-only. It reads your `SOUL.md` goals, uses Slack MCP to find recent mentions and requests, and replies ephemerally with what needs your attention, ranked, with permalinks. A brief is read-only: it can search and read, but it can't create or edit canvases or change your soul. Requires the owner to be connected to Slack MCP; otherwise it replies with the install link.
+The `/brief` slash command is owner-only. It reads your `SOUL.md` goals, uses Slack MCP to find recent mentions and requests, and replies ephemerally with what needs your attention, ranked, with permalinks. A brief is read-only: it can search and read, but it can't create or edit canvases or change your soul. Requires the owner to be connected to Slack MCP; otherwise it replies with the install link, or a link to this README without OAuth. Connecting Slack MCP, and so `/brief`, needs the OAuth entry point (`app-oauth.js`), because Socket Mode has no user token.
 
 ### Slack MCP Server
 
-Connecting the [Slack MCP Server](https://github.com/slackapi/slack-mcp-server) is optional. When deployed with OAuth (HTTP mode), a person who connects it from the Home tab has the agent work with runbooks as them, only in their DMs with the agent (and in `/brief` for the owner): it finds runbooks with Slack search and reads and writes canvases with their access, so edits show their name. Channel replies, thread replies, and learning from channel messages always use the bot token's runbook tools.
+Connecting the [Slack MCP Server](https://github.com/slackapi/slack-mcp-server) is optional, and needs the OAuth entry point (`app-oauth.js`): Socket Mode (`app.js`) has no user token, so it can't be connected there. When deployed with OAuth (HTTP mode), a person who connects it from the Home tab has the agent work with runbooks as them, only in their DMs with the agent (and in `/brief` for the owner): it finds runbooks with Slack search and reads and writes canvases with their access, so edits show their name. Channel replies, thread replies, and learning from channel messages always use the bot token's runbook tools.
 
 ## Setup
 
@@ -168,16 +168,15 @@ cd my-personal-agent
 
 #### Environment Variables
 
-Before you can run the app, you'll need to store some environment variables.
+Before you can run the app, you'll need to store some environment variables in `.env`, which you create from `.env.sample` under Providers below.
 
-1. Rename `.env.sample` to `.env`.
-2. Open your apps setting page from [this list](https://api.slack.com/apps), click _OAuth & Permissions_ in the left hand menu, then copy the _Bot User OAuth Token_ into your `.env` file under `SLACK_BOT_TOKEN`.
+1. Open your apps setting page from [this list](https://api.slack.com/apps), click _OAuth & Permissions_ in the left hand menu, then copy the _Bot User OAuth Token_ into your `.env` file under `SLACK_BOT_TOKEN`.
 
 ```sh
 SLACK_BOT_TOKEN=YOUR_SLACK_BOT_TOKEN
 ```
 
-3. Click _Basic Information_ from the left hand menu and follow the steps in the _App-Level Tokens_ section to create an app-level token with the `connections:write` scope. Copy that token into your `.env` as `SLACK_APP_TOKEN`.
+2. Click _Basic Information_ from the left hand menu and follow the steps in the _App-Level Tokens_ section to create an app-level token with the `connections:write` scope. Copy that token into your `.env` as `SLACK_APP_TOKEN`.
 
 ```sh
 SLACK_APP_TOKEN=YOUR_SLACK_APP_TOKEN
@@ -193,6 +192,8 @@ cd my-personal-agent/claude-agent-sdk
 </details>
 
 #### Install dependencies
+
+This app requires Node.js 22 or later.
 
 ```sh
 npm install
@@ -247,6 +248,8 @@ npm start
 ```
 
 </details>
+
+> **Note:** Socket Mode (`slack run` or `npm start`) has no user token, so connecting the Slack MCP Server and `/brief` need the OAuth HTTP Server entry point (`app-oauth.js`) below.
 
 <details><summary><strong>Using OAuth HTTP Server (with ngrok)</strong></summary>
 
@@ -322,7 +325,7 @@ SLACK_CLIENT_SECRET=YOUR_CLIENT_SECRET
 SLACK_REDIRECT_URI=https://YOUR_NGROK_SUBDOMAIN.ngrok-free.app/slack/oauth_redirect
 ```
 
-Replace `your-subdomain` in `SLACK_REDIRECT_URI` with your ngrok subdomain.
+Replace `YOUR_NGROK_SUBDOMAIN` in `SLACK_REDIRECT_URI` with your ngrok subdomain.
 
 5. Start the app:
 
@@ -405,7 +408,7 @@ Every incoming request is routed to a "listener". This directory groups each lis
 
 - `app-home-opened.js` — Publishes the App Home view with a welcome message, MCP status, and the owner's soul status, or pins owner or guest suggested prompts to the agent DM Messages tab (branches on `event.tab`).
 - `app-mentioned.js` — Responds to @mentions in channels, including thread replies that mention the agent. Mentions from other bots are ignored.
-- `message.js` — Responds to direct messages, including ones that share files, and to replies in threads the agent is part of, then learns from channel messages.
+- `message.js` — Responds to direct messages, including ones that share files, and to replies in threads the agent is part of, and learns from other channel messages that don't mention the agent.
 
 **`/listeners/install-url.js`** — Builds the Slack MCP connect link and message shared by the App Home and `/brief`.
 
@@ -415,7 +418,7 @@ Every incoming request is routed to a "listener". This directory groups each lis
 
 **`/listeners/actions`** — Handles interactive components:
 
-- `feedback-buttons.js` — Handles thumbs up/down feedback on agent responses.
+- `feedback-buttons.js` — Handles _Good Response_ and _Bad Response_ feedback on agent responses.
 
 **`/listeners/views`** — Builds Block Kit views:
 
@@ -437,6 +440,10 @@ The `tools` directory contains the runbook tools (`list-runbooks.js`, `read-runb
 ### `/thread-context`
 
 The `store.js` file implements an in-memory session ID store, keyed by channel, thread, and requester. The Claude Agent SDK keeps conversation history in its sessions, so only session IDs are tracked here for resuming conversations. This enables multi-turn conversations where the agent remembers previous context within a thread, and ensures one person's tool outputs never enter another person's run in a shared thread. The store has TTL-based cleanup (24 hours) and a max entry limit (1000).
+
+### `/tests`
+
+Unit tests for the agent, listeners, and thread context, run with `npm test` (Node's built-in test runner).
 
 ### `SOUL.template.md`
 

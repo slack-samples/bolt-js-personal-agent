@@ -3,6 +3,8 @@ import { mock } from 'node:test';
 
 import { MCPServerStreamableHttp, RunContext } from '@openai/agents';
 
+import { SOUL_PATH } from '../agent/soul.js';
+
 /**
  * @param {string} error
  * @param {string} [detail]
@@ -61,12 +63,15 @@ export function withEnv(t, values) {
 }
 
 /**
- * Make every file read return `soul` for this test.
+ * Make reading SOUL.md return `soul` for this test.
  * @param {import('node:test').TestContext} t
  * @param {string} soul
  */
 export function withSoul(t, soul) {
-  const readFileSync = mock.method(fs, 'readFileSync', () => soul);
+  const original = fs.readFileSync;
+  const readFileSync = mock.method(fs, 'readFileSync', (/** @type {any[]} */ ...args) =>
+    args[0] === SOUL_PATH ? soul : original(...args),
+  );
   t.after(() => readFileSync.mock.restore());
 }
 

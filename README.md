@@ -68,6 +68,6 @@ The personal agent interacts with you through five entry points:
 
 The agent's voice and answers are shaped by a `SOUL.md` file that the owner (set via `OWNER_USER_ID`) creates through an interview or edits directly. The owner also has access to the `/brief` command, which searches recent mentions and requests and lists what needs attention.
 
-With the bot token, the agent lists, reads, and creates runbooks. When you connect the [Slack MCP Server](https://github.com/slackapi/slack-mcp-server) from the Home tab, the agent works with runbooks as you instead, which can also update existing runbooks. When the agent changes a runbook, it tells you with an ephemeral message only you can see.
+With the bot token, the agent lists, reads, and creates runbooks. When you connect the [Slack MCP Server](https://github.com/slackapi/slack-mcp-server) from the Home tab, the agent works with runbooks as you in your DMs with it, which can also update existing runbooks. When the agent changes a runbook, it tells the message's author with an ephemeral message only they can see.
 
 For full setup instructions, pick a framework above and follow the README in that directory.

@@ -1,4 +1,5 @@
 import assert from 'node:assert';
+import fs from 'node:fs';
 import { beforeEach, describe, it } from 'node:test';
 
 import { setTracingDisabled } from '@openai/agents';
@@ -7,14 +8,17 @@ import {
   agent,
   BRIEF_READ_TOOLS,
   buildInstructions,
+  ERROR_REPLY,
   localTools,
+  MAX_TURNS_REPLY,
   mcpToolNames,
   RUNBOOK_TOOLS,
   runAgent,
   SYSTEM_PROMPT,
 } from '../../agent/agent.js';
 import { AgentDeps } from '../../agent/deps.js';
-import { say, scripted, toolNames } from '../fake-model.js';
+import { TEMPLATE_PATH } from '../../agent/soul.js';
+import { call, say, scripted, toolNames } from '../fake-model.js';
 import { fakeSlackMcp, withOwner, withSoul } from '../helpers.js';
 
 setTracingDisabled(true);
@@ -41,7 +45,7 @@ function section(text, heading) {
 }
 
 const BASE_TOOLS = ['add_emoji_reaction', 'create_runbook', 'list_runbooks', 'read_runbook'];
-const TEMPLATE_SOUL = '<!-- soul-template -->\n# Soul\n## Goals\n*placeholder*';
+const TEMPLATE_SOUL = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
 const ONBOARDING_LINE = 'start the onboarding interview';
 const CONNECT_LINE = 'ask them to connect the Slack MCP Server';
 
@@ -94,6 +98,11 @@ describe('agent', () => {
     assert.deepStrictEqual(mcpToolNames(deps), RUNBOOK_TOOLS);
   });
 
+  it('gives a learning run no emoji reaction tool', () => {
+    const deps = makeDeps({ channelId: 'C123', isPrivateReply: false, isLearning: true });
+    assert.deepStrictEqual(localToolNames(deps), ['create_runbook', 'list_runbooks', 'read_runbook']);
+  });
+
   it('includes the soul and owner in the instructions', (t) => {
     withSoul(t, '## Goals\nShip');
     const text = buildInstructions(makeDeps({ isOwner: true, isPrivateReply: true }));
@@ -131,11 +140,16 @@ describe('agent', () => {
     assert.ok(!text.includes(ONBOARDING_LINE));
   });
 
-  it('strips the template marker from the instructions', (t) => {
+  it('does not start onboarding for a guest DM', (t) => {
     withSoul(t, TEMPLATE_SOUL);
+    const text = buildInstructions(makeDeps({ userId: 'U0GUEST', isPrivateReply: true }));
+    assert.ok(!text.includes(ONBOARDING_LINE));
+  });
+
+  it('does not start onboarding once the template is filled in', (t) => {
+    withSoul(t, `${TEMPLATE_SOUL}\nName: Ada`);
     const text = buildInstructions(makeDeps({ isOwner: true, isPrivateReply: true }));
-    assert.ok(!text.includes('<!-- soul-template -->'));
-    assert.ok(text.includes('*placeholder*'));
+    assert.ok(!text.includes(ONBOARDING_LINE));
   });
 
   it('asks the agent to identify itself to guests', (t) => {
@@ -232,5 +246,26 @@ describe('runAgent', () => {
     assert.ok(!allowed.includes('slack_read_thread'));
     assert.ok(!allowed.includes('slack_read_channel'));
     assert.deepStrictEqual(toolNames(model).sort(), ['add_emoji_reaction', ...RUNBOOK_TOOLS].sort());
+  });
+
+  it('gives a guest DM without a token no soul tools', async (t) => {
+    const mcp = fakeSlackMcp(t);
+    const model = scripted(t, () => say('Done.'));
+    await runAgent('hi', makeDeps({ userId: 'U0GUEST', isPrivateReply: true }));
+    assert.strictEqual(mcp.servers.length, 0);
+    assert.deepStrictEqual(toolNames(model), BASE_TOOLS);
+  });
+
+  it('explains max turns', async (t) => {
+    t.mock.method(Math, 'random', () => 0);
+    scripted(t, () => call('add_emoji_reaction', { emoji_name: 'tada' }));
+    const result = await runAgent('hi', makeDeps({ channelId: 'C123' }));
+    assert.strictEqual(result.finalOutput, MAX_TURNS_REPLY);
+  });
+
+  it('falls back to the error reply on an empty result', async (t) => {
+    scripted(t, () => say(''));
+    const result = await runAgent('hi', makeDeps({ channelId: 'C123' }));
+    assert.strictEqual(result.finalOutput, ERROR_REPLY);
   });
 });

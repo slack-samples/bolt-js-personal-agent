@@ -1,7 +1,7 @@
 {
-  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "$schema": "./claude-agent-sdk/node_modules/@biomejs/biome/configuration_schema.json",
   "files": {
-    "includes": ["**", "!.*/skills", "!.slack", "!openai-agents-sdk", "!claude-agent-sdk", "!skills-lock.json"]
+    "includes": ["**", "!.*/skills", "!claude-agent-sdk", "!openai-agents-sdk", "!skills-lock.json"]
   },
   "formatter": {
     "enabled": true,
@@ -13,34 +13,10 @@
     "lineWidth": 120,
     "lineEnding": "lf"
   },
-  "javascript": {
-    "formatter": {
-      "quoteStyle": "single"
-    }
-  },
   "linter": {
     "enabled": true,
     "rules": {
-      "preset": "recommended",
-      "style": {
-        "noParameterAssign": "error",
-        "useAsConstAssertion": "error",
-        "useDefaultParameterLast": "error",
-        "useEnumInitializers": "error",
-        "useSelfClosingElements": "error",
-        "useSingleVarDeclarator": "error",
-        "noUnusedTemplateLiteral": "error",
-        "useNumberNamespace": "error",
-        "noInferrableTypes": "error",
-        "noUselessElse": "error"
-      }
-    }
-  },
-  "assist": {
-    "actions": {
-      "source": {
-        "organizeImports": "on"
-      }
+      "preset": "recommended"
     }
   },
   "vcs": {

@@ -14,15 +14,15 @@
 export class SessionStore {
   /**
    * @param {number} [ttlSeconds=86400]
-   * @param {number} [maxEntries=1000]
+   * @param {number} [maxConversations=1000]
    */
-  constructor(ttlSeconds = 86400, maxEntries = 1000) {
+  constructor(ttlSeconds = 86400, maxConversations = 1000) {
     /** @type {Map<string, StoreEntry>} */
     this._store = new Map();
     /** @private @type {number} */
     this._ttlSeconds = ttlSeconds;
     /** @private @type {number} */
-    this._maxEntries = maxEntries;
+    this._maxConversations = maxConversations;
   }
 
   /**
@@ -96,9 +96,9 @@ export class SessionStore {
         this._store.delete(key);
       }
     }
-    if (this._store.size > this._maxEntries) {
+    if (this._store.size > this._maxConversations) {
       const sorted = [...this._store.entries()].sort((a, b) => a[1].timestamp - b[1].timestamp);
-      const toRemove = sorted.slice(0, this._store.size - this._maxEntries);
+      const toRemove = sorted.slice(0, this._store.size - this._maxConversations);
       for (const [key] of toRemove) {
         this._store.delete(key);
       }

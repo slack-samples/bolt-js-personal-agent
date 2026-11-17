@@ -55,7 +55,7 @@ export function buildAppHomeView(installUrl = null, isConnected = false, soulSta
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: '\ud83d\udfe2 *Slack MCP Server is connected.*',
+          text: '🟢 *Slack MCP Server is connected.*',
         },
       },
       {
@@ -74,7 +74,7 @@ export function buildAppHomeView(installUrl = null, isConnected = false, soulSta
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `\ud83d\udd34 *Slack MCP Server is disconnected.* <${installUrl}|Connect the Slack MCP Server.>`,
+          text: `🔴 *Slack MCP Server is disconnected.* <${installUrl}|Connect the Slack MCP Server.>`,
         },
       },
       {
@@ -93,7 +93,7 @@ export function buildAppHomeView(installUrl = null, isConnected = false, soulSta
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `\ud83d\udd34 *Slack MCP Server is disconnected.* <${README_MCP_URL}|Learn how to enable the Slack MCP Server.>`,
+          text: `🔴 *Slack MCP Server is disconnected.* <${README_MCP_URL}|Learn how to enable the Slack MCP Server.>`,
         },
       },
       {

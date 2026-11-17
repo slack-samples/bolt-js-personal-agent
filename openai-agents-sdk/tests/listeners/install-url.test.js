@@ -16,4 +16,10 @@ describe('installUrl', () => {
     assert.strictEqual(installUrl(), null);
     assert.strictEqual(connectMessage(), `Please connect your Slack account first. See: ${README_MCP_URL}`);
   });
+
+  it('points to the README without a redirect URI', (t) => {
+    withEnv(t, { SLACK_CLIENT_ID: '123.456', SLACK_REDIRECT_URI: null });
+    assert.strictEqual(installUrl(), null);
+    assert.strictEqual(connectMessage(), `Please connect your Slack account first. See: ${README_MCP_URL}`);
+  });
 });

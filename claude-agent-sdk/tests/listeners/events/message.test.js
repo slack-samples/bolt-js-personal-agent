@@ -64,6 +64,7 @@ describe('handleMessage', () => {
     assert.ok(options.systemPrompt.includes('The requester is not your owner.'));
     assert.ok(options.systemPrompt.includes('Your reply is not private'));
     assert.deepStrictEqual(Object.keys(options.mcpServers), ['agent-tools']);
+    assert.ok(!options.allowedTools.includes('mcp__agent-tools__add_emoji_reaction'));
     const args = client.chat.postEphemeral.mock.calls[0].arguments[0];
     assert.strictEqual(args.user, 'U123');
     assert.strictEqual(args.thread_ts, '1700000000.000100');
@@ -72,22 +73,12 @@ describe('handleMessage', () => {
 
   it('never resumes or stores a session while learning', async (t) => {
     sessionStore.setSession('C123', 't1', 'U123', 'reply-session');
-    const learn = answer(LEARNED, ['mcp__agent-tools__create_runbook'], 'learn-session');
-    const reply = answer('Done.', [], 'reply-session');
-    const query = t.mock.method(sdk, 'query', (/** @type {any} */ request) =>
-      request.prompt.startsWith('Learn from') ? learn() : reply(),
-    );
+    const query = t.mock.method(sdk, 'query', answer(LEARNED, ['mcp__agent-tools__create_runbook'], 'learn-session'));
 
-    await handle({
-      channel_type: 'channel',
-      subtype: 'thread_broadcast',
-      text: 'Fixed it',
-      thread_ts: 't1',
-      ts: 't2',
-    });
+    await handle({ channel_type: 'channel', text: 'Fixed it', ts: 't1' });
 
-    assert.strictEqual(query.mock.callCount(), 2);
-    const { prompt, options } = callOptions(query, 1);
+    assert.strictEqual(query.mock.callCount(), 1);
+    const { prompt, options } = callOptions(query);
     assert.ok(prompt.startsWith('Learn from'));
     assert.strictEqual(options.resume, undefined);
     assert.strictEqual(options.persistSession, false);
@@ -196,7 +187,7 @@ describe('handleMessage', () => {
 
     await handle({ channel_type: 'channel', text: 'Any update?', thread_ts: 't1', ts: 't2' });
 
-    assert.strictEqual(query.mock.callCount(), 2);
+    assert.strictEqual(query.mock.callCount(), 1);
     const { prompt, options } = callOptions(query);
     assert.strictEqual(prompt, 'Any update?');
     assert.strictEqual(options.resume, undefined);
@@ -222,7 +213,7 @@ describe('handleMessage', () => {
 
     await handle({ channel_type: 'channel', text: 'Any update?', thread_ts: 't1', ts: 't2' });
 
-    assert.strictEqual(query.mock.callCount(), 2);
+    assert.strictEqual(query.mock.callCount(), 1);
     const { options } = callOptions(query);
     assert.strictEqual(options.resume, 'owner-session');
     assert.ok(options.systemPrompt.includes('The requester is your owner.'));
@@ -251,9 +242,32 @@ describe('handleMessage', () => {
 
     await handle({ channel_type: 'channel', text: '<@UB0T> any update?', thread_ts: 't1', ts: 't2' });
 
-    assert.strictEqual(query.mock.callCount(), 1);
-    assert.ok(callOptions(query).prompt.startsWith('Learn from'));
+    assert.strictEqual(query.mock.callCount(), 0);
     assert.strictEqual(streamer.append.mock.callCount(), 0);
+  });
+
+  it('does not learn from a message that mentions the agent', async (t) => {
+    const query = t.mock.method(sdk, 'query', answer(LEARNED, ['mcp__agent-tools__create_runbook']));
+
+    await handle({ channel_type: 'channel', text: '<@UB0T> how do I rotate the secret?', ts: '1700000000.000100' });
+
+    assert.strictEqual(query.mock.callCount(), 0);
+    assert.strictEqual(client.chat.postEphemeral.mock.callCount(), 0);
+  });
+
+  it('logs a failed bot user lookup', async (t) => {
+    context = { botToken: 'xoxb-failing', userId: 'U123' };
+    client.auth = {
+      test: mock.fn(async () => {
+        throw new Error('auth failed');
+      }),
+    };
+    const query = t.mock.method(sdk, 'query', answer('Nothing to keep.'));
+
+    await handle({ channel_type: 'channel', text: 'Fixed it', ts: '1700000000.000100' });
+
+    assert.strictEqual(query.mock.callCount(), 0);
+    assert.ok(logger.error.mock.calls[0].arguments[0].includes('auth failed'));
   });
 
   it('looks up the bot user once when the context has none', async (t) => {
@@ -266,7 +280,7 @@ describe('handleMessage', () => {
     await handle({ channel_type: 'channel', text: '<@UB0T> still there?', thread_ts: 't1', ts: 't3' });
 
     assert.strictEqual(client.auth.test.mock.callCount(), 1);
-    assert.strictEqual(query.mock.callCount(), 2);
+    assert.strictEqual(query.mock.callCount(), 0);
     assert.strictEqual(streamer.append.mock.callCount(), 0);
   });
 
@@ -279,51 +293,15 @@ describe('handleMessage', () => {
     assert.strictEqual(streamer.append.mock.callCount(), 1);
   });
 
-  it('replies before learning in an engaged thread', async (t) => {
+  it('does not learn from a reply in an engaged thread', async (t) => {
     sessionStore.setSession('C123', 't1', 'U123', 'reply-session');
     const query = t.mock.method(sdk, 'query', answer('No update yet.'));
 
     await handle({ channel_type: 'channel', text: 'Any update?', thread_ts: 't1', ts: 't2' });
 
-    assert.strictEqual(query.mock.callCount(), 2);
+    assert.strictEqual(query.mock.callCount(), 1);
     assert.strictEqual(callOptions(query).prompt, 'Any update?');
-    assert.ok(callOptions(query, 1).prompt.startsWith('Learn from'));
     assert.strictEqual(streamer.append.mock.callCount(), 1);
-  });
-
-  it('still learns when the reply fails', async (t) => {
-    sessionStore.setSession('C123', 't1', 'U123', 'reply-session');
-    const learn = answer('Nothing to keep.');
-    const query = t.mock.method(sdk, 'query', (/** @type {any} */ request) => {
-      if (request.prompt.startsWith('Learn from')) return learn();
-      throw new Error('reply failed');
-    });
-    const failingSay = mock.fn(async () => {
-      throw new Error('say failed');
-    });
-
-    await assert.rejects(
-      handle({ channel_type: 'channel', text: 'Any update?', thread_ts: 't1', ts: 't2' }, { say: failingSay }),
-      /say failed/,
-    );
-
-    assert.strictEqual(query.mock.callCount(), 2);
-    assert.ok(callOptions(query, 1).prompt.startsWith('Learn from'));
-    assert.ok(logger.error.mock.calls[0].arguments[0].includes('reply failed'));
-  });
-
-  it('still replies when learning fails', async (t) => {
-    sessionStore.setSession('C123', 't1', 'U123', 'reply-session');
-    const reply = answer('No update yet.');
-    t.mock.method(sdk, 'query', (/** @type {any} */ request) => {
-      if (request.prompt.startsWith('Learn from')) throw new Error('learning failed');
-      return reply();
-    });
-
-    await handle({ channel_type: 'channel', text: 'Any update?', thread_ts: 't1', ts: 't2' });
-
-    assert.strictEqual(streamer.append.mock.callCount(), 1);
-    assert.ok(logger.error.mock.calls[0].arguments[0].includes('learning failed'));
   });
 
   it('replies to a DM that shares a file', async (t) => {
@@ -348,7 +326,7 @@ describe('handleMessage', () => {
       ts: 't2',
     });
 
-    assert.strictEqual(query.mock.callCount(), 2);
+    assert.strictEqual(query.mock.callCount(), 1);
     assert.strictEqual(callOptions(query).prompt, 'Any update?');
     assert.strictEqual(streamer.append.mock.callCount(), 1);
   });

@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { createSdkMcpServer, query } from '@anthropic-ai/claude-agent-sdk';
 
 import { ownerUserId, replyUserToken } from './access.js';
-import { isTemplate, loadSoul, TEMPLATE_MARKER } from './soul.js';
+import { isTemplate, loadSoul } from './soul.js';
 import { addEmojiReaction, createRunbook, listRunbooks, readRunbook, updateSoul } from './tools/index.js';
 
 export const SYSTEM_PROMPT = `\
@@ -100,6 +100,8 @@ export const MAX_TURNS_REPLY =
   `I used all ${MAX_TURNS} steps I get in one turn before finishing. ` +
   "Send a message and I'll pick up where I left off.";
 
+export const ERROR_REPLY = "Sorry, I couldn't finish that. Please try again.";
+
 export const RUNBOOK_TOOLS = [
   'slack_create_canvas',
   'slack_read_canvas',
@@ -136,6 +138,7 @@ export const sdk = { query };
  * @property {boolean} [isOwner]
  * @property {boolean} [isPrivateReply]
  * @property {boolean} [isBrief]
+ * @property {boolean} [isLearning]
  */
 
 /**
@@ -171,9 +174,16 @@ function soulTools(deps) {
 /**
  * @param {AgentDeps} deps
  */
+function reactionTools(deps) {
+  return deps.isLearning ? [] : [addEmojiReaction(deps)];
+}
+
+/**
+ * @param {AgentDeps} deps
+ */
 export function localTools(deps) {
   if (briefRun(deps)) return [];
-  const base = [addEmojiReaction(deps), createRunbook(deps), listRunbooks(deps), readRunbook(deps)];
+  const base = [...reactionTools(deps), createRunbook(deps), listRunbooks(deps), readRunbook(deps)];
   return [...base, ...soulTools(deps)];
 }
 
@@ -182,7 +192,7 @@ export function localTools(deps) {
  */
 export function mcpLocalTools(deps) {
   if (briefRun(deps)) return [];
-  return [addEmojiReaction(deps), ...soulTools(deps)];
+  return [...reactionTools(deps), ...soulTools(deps)];
 }
 
 /**
@@ -242,7 +252,7 @@ function conversationLines(deps, soul) {
 export function buildInstructions(deps) {
   const soul = loadSoul();
   const conversation = conversationLines(deps, soul).join('\n');
-  const soulText = soul.replaceAll(TEMPLATE_MARKER, '').trim();
+  const soulText = soul.trim();
   return `${SYSTEM_PROMPT}\n\n## SOUL\n${soulText}\n\n## CURRENT CONVERSATION\n${conversation}\n`;
 }
 
@@ -335,6 +345,6 @@ export async function runAgent(text, deps, { sessionId, persistSession = true } 
   if (result.subtype === 'error_max_turns') {
     return { finalOutput: MAX_TURNS_REPLY, sessionId: result.session_id, toolNames };
   }
-  const finalOutput = result.subtype === 'success' ? result.result : '';
+  const finalOutput = result.subtype === 'success' && result.result.trim() ? result.result : ERROR_REPLY;
   return { finalOutput, sessionId: result.session_id, toolNames };
 }
